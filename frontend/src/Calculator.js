@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import './App.css';
 import Button from './components/Button/Button';
 
@@ -58,6 +57,31 @@ const Calculator = () => {
     }
   };
 
+  const calculate = (firstOperand, secondOperand, op) => {
+    if (op === null) return secondOperand;
+
+    const first = parseFloat(firstOperand);
+    const second = parseFloat(secondOperand);
+
+    switch (op) {
+      case '+':
+        return first + second;
+      case '-':
+        return first - second;
+      case '*':
+        return first * second;
+      case '/':
+        if (second === 0) {
+          return '∞'; // Handle division by zero
+        }
+        return first / second;
+      case '%':
+        return first % second;
+      default:
+        return second;
+    }
+  };
+
   const performOperation = (op) => {
     const ops = {
       '÷': '/',
@@ -72,37 +96,37 @@ const Calculator = () => {
     if (storedValue === null) {
       setStoredValue(inputValue);
     } else if (operation) {
-      calculate(storedValue, inputValue).then(result => {
-        setStoredValue(result);
-        setDisplay(String(result));
-      });
+      const result = calculate(storedValue, inputValue, operation);
+      if (result === 'Error') {
+        setDisplay('Error');
+        setStoredValue(null);
+        setOperation(null);
+        setWaitingForOperand(true);
+        return;
+      }
+      setStoredValue(result);
+      setDisplay(String(result));
     }
     setWaitingForOperand(true);
     setOperation(actualOp);
-  }
-
-  const calculate = async (firstOperand, secondOperand) => {
-    if (operation === null) return secondOperand;
-
-    try {
-      const response = await axios.post('http://localhost:5000/calculate', {
-        expression: `${firstOperand}${operation}${secondOperand}`
-      });
-      return response.data.result;
-    } catch (error) {
-      console.error('Calculation error:', error);
-      return secondOperand; //return the second opernd as fallback
-    }
   };
 
-  const handleEquals = async () => {
+  const handleEquals = () => {
     if (operation === null || waitingForOperand) return;
 
     const inputValue = parseFloat(display);
-    const result = await calculate(storedValue, inputValue);
+    const result = calculate(storedValue, inputValue, operation);
+    
+    if (result === '') {
+      setDisplay('Error');
+      setStoredValue(null);
+      setOperation(null);
+      setWaitingForOperand(true);
+      return;
+    }
     
     setDisplay(String(result));
-    setStoredValue(result); //keep the result for further operations
+    setStoredValue(result); // keep the result for further operations
     setOperation(null);
     setWaitingForOperand(true);
   };
@@ -157,8 +181,8 @@ const Calculator = () => {
 
   return (
     <div className="calculator">
-      <div className="display">
-        <div className="result">{display}</div>
+      <div className="display" data-testid="display">
+        <div className="result" data-testid="result">{display}</div>
       </div>
       <div className="buttons-grid">
         {buttonLayout.map((btn) => (
