@@ -3,33 +3,14 @@ import './App.css';
 import Button from './components/Button/Button';
 
 const Calculator = () => {
+
   const [display, setDisplay] = useState('0');
   const [storedValue, setStoredValue] = useState(null);
   const [operation, setOperation] = useState(null);
   const [waitingForOperand, setWaitingForOperand] = useState(false);
 
-  const buttonLayout =[
-    { value: 'AC', variant: 'function' },
-    { value: '+/-', variant: 'function' },
-    { value: '%', variant: 'function' },
-    { value: '÷', variant: 'operator' },
-    { value: '7', variant: 'digit' },
-    { value: '8', variant: 'digit' },
-    { value: '9', variant: 'digit' },
-    { value: '×', variant: 'operator' },
-    { value: '4', variant: 'digit' },
-    { value: '5', variant: 'digit' },
-    { value: '6', variant: 'digit' },
-    { value: '-', variant: 'operator' },
-    { value: '1', variant: 'digit' },
-    { value: '2', variant: 'digit' },
-    { value: '3', variant: 'digit' },
-    { value: '+', variant: 'operator' },
-    { value: '0', variant: 'zero' },
-    { value: '.', variant: 'digit' },
-    { value: '=', variant: 'operator' }
-  ];
 
+  //clear the Result Tab
   const clearAll = () => {
     setDisplay('0');
     setStoredValue(null);
@@ -37,6 +18,7 @@ const Calculator = () => {
     setWaitingForOperand(false);
   };
 
+  //inputs digits
   const inputDigit = (digit) => {
     if (waitingForOperand) {
       setDisplay(digit);
@@ -46,6 +28,7 @@ const Calculator = () => {
     }
   };
 
+  //inputs decimals
   const inputDecimal = () => {
     if (waitingForOperand) {
       setDisplay('0.');
@@ -57,6 +40,7 @@ const Calculator = () => {
     }
   };
 
+  //calculates expression
   const calculate = (firstOperand, secondOperand, op) => {
     if (op === null) return secondOperand;
 
@@ -82,6 +66,7 @@ const Calculator = () => {
     }
   };
 
+  //performs operations
   const performOperation = (op) => {
     const ops = {
       '÷': '/',
@@ -111,13 +96,14 @@ const Calculator = () => {
     setOperation(actualOp);
   };
 
+  //Equal button press 
   const handleEquals = () => {
     if (operation === null || waitingForOperand) return;
 
     const inputValue = parseFloat(display);
     const result = calculate(storedValue, inputValue, operation);
     
-    if (result === '') {
+    if (result === 'Error') {
       setDisplay('Error');
       setStoredValue(null);
       setOperation(null);
@@ -139,45 +125,28 @@ const Calculator = () => {
     setDisplay(String(parseFloat(display) / 100));
   };
 
-  const handleButtonClick = (value) => {
-    switch (value) {
-      case 'AC':
-        clearAll();
-        break;
-      case '+/-':
-        toggleSign();
-        break;
-      case '%':
-        handlePercentage();
-        break;
-      case '÷':
-      case '×':
-      case '-':
-      case '+':
-        performOperation(value);
-        break;
-      case '=':
-        handleEquals();
-        break;
-      case '.':
-        inputDecimal();
-        break;
-      case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-        inputDigit(value);
-        break;
-      default:
-        break;
-    }
-  };
+  //Button Layout
+  const buttonLayout =[
+    { value: 'AC', variant: 'function', handler: clearAll },
+    { value: '+/-', variant: 'function', handler: toggleSign },
+    { value: '%', variant: 'function', handler: handlePercentage },
+    { value: '÷', variant: 'operator', handler: () => performOperation('÷') },
+    { value: '7', variant: 'digit', handler: () => inputDigit('7') },
+    { value: '8', variant: 'digit', handler: () => inputDigit('8') },
+    { value: '9', variant: 'digit', handler: () => inputDigit('9') },
+    { value: '×', variant: 'operator', handler: () => performOperation('×') },
+    { value: '4', variant: 'digit', handler: () => inputDigit('4') },
+    { value: '5', variant: 'digit', handler: () => inputDigit('5') },
+    { value: '6', variant: 'digit', handler: () => inputDigit('6') },
+    { value: '-', variant: 'operator', handler: () => performOperation('-') },
+    { value: '1', variant: 'digit', handler: () => inputDigit('1') },
+    { value: '2', variant: 'digit', handler: () => inputDigit('2') },
+    { value: '3', variant: 'digit', handler: () => inputDigit('3') },
+    { value: '+', variant: 'operator', handler: () => performOperation('+') },
+    { value: '0', variant: 'zero', handler: () => inputDigit('0') },
+    { value: '.', variant: 'digit', handler: inputDecimal },
+    { value: '=', variant: 'operator', handler: handleEquals }
+  ];
 
   return (
     <div className="calculator">
@@ -190,7 +159,7 @@ const Calculator = () => {
             key={btn.value}
             value={btn.value}
             variant={btn.variant}
-            onClick={handleButtonClick}
+            onClick={btn.handler}
           />
         ))}
       </div>
