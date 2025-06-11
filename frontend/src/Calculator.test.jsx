@@ -129,7 +129,7 @@ describe('Calculator Componenet', () => {
     });
 
     //Division
-    test('Multiplication Works', () => {
+    test('Division Works', () => {
         //normal
         fireEvent.click(screen.getByText('2'));
         fireEvent.click(screen.getByText('7'));
