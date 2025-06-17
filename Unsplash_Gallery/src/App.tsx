@@ -19,7 +19,7 @@ const App: React.FC = () => {
     }
   };
 
-  return (
+  return (  
     <div className="min-h-screen bg-gray-100">
       <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="max-w-7xl mx-auto px-4 py-8">

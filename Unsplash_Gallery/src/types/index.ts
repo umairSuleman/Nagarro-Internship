@@ -1,1 +1,1 @@
-export * from './unsplash.types';
+export * from './unsplashModel';

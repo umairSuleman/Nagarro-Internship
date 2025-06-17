@@ -1,2 +1,2 @@
 
-export * from './unsplash.services';
+export * from './unsplashServices';
