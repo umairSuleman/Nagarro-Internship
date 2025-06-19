@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { 
   LoadingSpinner, 
   ImageCard, 
@@ -12,55 +13,54 @@ import {
   Alert,
   StatusMessage
 } from '../components';
-import { unsplashService } from '../services';
-import type { UnsplashPhoto, SearchParams } from '../types';
+import { 
+  searchPhotos,
+  setQuery,
+  setCurrentPage,
+  setOrderBy,
+  setOrientation,
+  setColor,
+  clearError
+} from '../store/slices/searchSlice';
+import type { RootState, AppDispatch } from '../store/types';
+import type { SearchParams } from '../types';
 
 export const SearchPage: React.FC = () => {
-  const [query, setQuery] = useState('');
-  const [photos, setPhotos] = useState<UnsplashPhoto[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [orderBy, setOrderBy] = useState<'relevant' | 'latest'>('relevant');
-  const [orientation, setOrientation] = useState<'landscape' | 'portrait' | 'squarish' | ''>('');
-  const [color, setColor] = useState<string>('');
+  const dispatch = useDispatch<AppDispatch>();
+  const {
+    photos,
+    loading,
+    error,
+    query,
+    total,
+    totalPages,
+    currentPage,
+    hasSearched,
+    orderBy,
+    orientation,
+    color
+  } = useSelector((state: RootState) => state.search);
 
-  const handleSearch = async (page: number = 1) => {
+  const handleSearch = (page: number = 1) => {
     if (!query.trim()) return;
 
-    try {
-      setLoading(true);
-      setError(null);
-      setHasSearched(true);
-      
-      const params: SearchParams = {
-        query: query.trim(),
-        page,
-        per_page: 12,
-        order_by: orderBy,
-        content_filter: 'low'
-      };
-      
-      if (orientation) params.orientation = orientation;
-      if (color) params.color = color as any;
-      
-      const data = await unsplashService.searchPhotos(params);
-      setPhotos(data.results);
-      setTotal(data.total);
-      setTotalPages(data.total_pages);
-      setCurrentPage(page);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to search photos');
-    } finally {
-      setLoading(false);
-    }
+    dispatch(setCurrentPage(page));
+    
+    const params: SearchParams = {
+      query: query.trim(),
+      page,
+      per_page: 12,
+      order_by: orderBy,
+    };
+    
+    if (orientation) params.orientation = orientation;
+    if (color) params.color = color as any;
+    
+    dispatch(searchPhotos(params));
   };
 
   const handleSearchSubmit = () => {
-    setCurrentPage(1);
+    dispatch(setCurrentPage(1));
     handleSearch(1);
   };
 
@@ -70,6 +70,26 @@ export const SearchPage: React.FC = () => {
     }
   };
 
+  const handleQueryChange = (newQuery: string) => {
+    dispatch(setQuery(newQuery));
+  };
+
+  const handleOrderByChange = (newOrderBy: 'relevant' | 'latest') => {
+    dispatch(setOrderBy(newOrderBy));
+  };
+
+  const handleOrientationChange = (newOrientation: '' | 'landscape' | 'portrait' | 'squarish') => {
+    dispatch(setOrientation(newOrientation));
+  };
+
+  const handleColorChange = (newColor: string) => {
+    dispatch(setColor(newColor));
+  };
+
+  const handleClearError = () => {
+    dispatch(clearError());
+  };
+
   return (
     <Section>
       <PageHeader title="Search Photos" />
@@ -77,7 +97,7 @@ export const SearchPage: React.FC = () => {
       <FormCard>
         <SearchInput
           value={query}
-          onChange={setQuery}
+          onChange={handleQueryChange}
           onSubmit={handleSearchSubmit}
           placeholder="Search for photos..."
           disabled={loading}
@@ -86,15 +106,22 @@ export const SearchPage: React.FC = () => {
         
         <SearchFilters
           orderBy={orderBy}
-          onOrderByChange={setOrderBy}
+          onOrderByChange={handleOrderByChange}
           orientation={orientation}
-          onOrientationChange={setOrientation}
+          onOrientationChange={handleOrientationChange}
           color={color}
-          onColorChange={setColor}
+          onColorChange={handleColorChange}
         />
       </FormCard>
 
-      {error && <Alert message={error} type="error" />}
+      {error && (
+        <Alert 
+          message={error} 
+          type="error" 
+          dismissible 
+          onDismiss={handleClearError}
+        />
+      )}
 
       {loading && <LoadingSpinner />}
 

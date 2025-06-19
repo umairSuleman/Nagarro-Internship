@@ -1,34 +1,23 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { RefreshCw } from 'lucide-react';
 
 import { LoadingSpinner, ImageCard, Pagination, PageHeader, Section, Grid, Button, Alert } from '../components';
-import { unsplashService } from '../services';
-import type { UnsplashPhoto } from '../types';
+import { fetchHomePhotos, setCurrentPage, clearError } from '../store/slices/homeSlice';
+import type { RootState, AppDispatch } from '../store/types';
 
 export const HomePage: React.FC = () => {
-  const [photos, setPhotos] = useState<UnsplashPhoto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [perPage] = useState(10);
+  const dispatch = useDispatch<AppDispatch>();
+  const { photos, loading, error, currentPage, perPage } = useSelector(
+    (state: RootState) => state.home
+  );
 
-  const loadPhotos = async (page: number = 1) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await unsplashService.listPhotos({
-        page,
-        per_page: perPage,
-        content_filter: 'low'
-      });
-      setPhotos(data);
-      setCurrentPage(page);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load photos');
-    } finally {
-      setLoading(false);
-    }
+  const loadPhotos = (page: number = 1) => {
+    dispatch(setCurrentPage(page));
+    dispatch(fetchHomePhotos({
+      page,
+      per_page: perPage,
+    }));
   };
 
   useEffect(() => {
@@ -41,9 +30,17 @@ export const HomePage: React.FC = () => {
     }
   };
 
+  const handleRefresh = () => {
+    loadPhotos(currentPage);
+  };
+
+  const handleClearError = () => {
+    dispatch(clearError());
+  };
+
   const refreshAction = (
     <Button
-      onClick={() => loadPhotos(currentPage)}
+      onClick={handleRefresh}
       disabled={loading}
       icon={RefreshCw}
       loading={loading}
@@ -59,7 +56,14 @@ export const HomePage: React.FC = () => {
         action={refreshAction}
       />
 
-      {error && <Alert message={error} type="error"/>}
+      {error && (
+        <Alert 
+          message={error} 
+          type="error" 
+          dismissible 
+          onDismiss={handleClearError}
+        />
+      )}
 
       {loading ? (
         <LoadingSpinner />

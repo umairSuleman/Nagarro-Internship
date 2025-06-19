@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
+import { Provider } from 'react-redux';
+import { store } from './store';
 import { Navigation } from './components';
-import { HomePage, RandomPage, SearchPage } from './pages';
+import { HomePage, SearchPage, RandomPage} from './pages';
 import './styles/index.css';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('home');
 
   const renderContent = () => {
-    switch (activeTab) {
+    switch(activeTab) {
       case 'home':
         return <HomePage />;
-      case 'random':
+      case  'random':
         return <RandomPage />;
       case 'search':
         return <SearchPage />;
@@ -26,6 +28,14 @@ const App: React.FC = () => {
         {renderContent()}
       </main>
     </div>
+  );
+};
+const App: React.FC = () => {
+
+  return (
+    <Provider store={store}>
+      <AppContent />
+    </Provider>
   );
 };
 

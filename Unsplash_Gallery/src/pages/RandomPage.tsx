@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { 
   LoadingSpinner,
   ImageCard,
@@ -9,36 +10,38 @@ import {
   Alert,
   EmptyState
 } from '../components';
-import { unsplashService } from '../services';
-import type { UnsplashPhoto, RandomParams } from '../types';
+import { 
+  generateRandomPhotos, 
+  setCount, 
+  setOrientation, 
+  clearError 
+} from '../store/slices/randomSlice';
+import type { RootState, AppDispatch } from '../store/types';
 
 export const RandomPage: React.FC = () => {
-  const [photos, setPhotos] = useState<UnsplashPhoto[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [count, setCount] = useState(1);
-  const [orientation, setOrientation] = useState<'landscape' | 'portrait' | 'squarish' | ''>('');
+  const dispatch = useDispatch<AppDispatch>();
+  const { photos, loading, error, count, orientation } = useSelector(
+    (state: RootState) => state.random
+  );
 
-  const generateRandomPhotos = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const params: RandomParams = {
-        count,
-        content_filter: 'low'
-      };
-      
-      if (orientation) {
-        params.orientation = orientation;
-      }
-      
-      const data = await unsplashService.getRandomPhotos(params);
-      setPhotos(Array.isArray(data) ? data : [data]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate random photos');
-    } finally {
-      setLoading(false);
+  const handleGenerateRandomPhotos = () => {
+    const params: any = { count };
+    if (orientation) {
+      params.orientation = orientation;
     }
+    dispatch(generateRandomPhotos(params));
+  };
+
+  const handleCountChange = (newCount: number) => {
+    dispatch(setCount(newCount));
+  };
+
+  const handleOrientationChange = (newOrientation: '' | 'landscape' | 'portrait' | 'squarish') => {
+    dispatch(setOrientation(newOrientation));
+  };
+
+  const handleClearError = () => {
+    dispatch(clearError());
   };
 
   return (
@@ -47,14 +50,21 @@ export const RandomPage: React.FC = () => {
       
       <RandomControls
         count={count}
-        onCountChange={setCount}
+        onCountChange={handleCountChange}
         orientation={orientation}
-        onOrientationChange={setOrientation}
-        onGenerate={generateRandomPhotos}
+        onOrientationChange={handleOrientationChange}
+        onGenerate={handleGenerateRandomPhotos}
         loading={loading}
       />
 
-      {error && <Alert message={error} type="error" />}
+      {error && (
+        <Alert 
+          message={error} 
+          type="error" 
+          dismissible 
+          onDismiss={handleClearError}
+        />
+      )}
 
       {loading && <LoadingSpinner />}
 
