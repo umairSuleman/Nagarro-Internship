@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   LoadingSpinner,
@@ -10,26 +10,30 @@ import {
   Alert,
   EmptyState
 } from '../components';
-import { 
-  generateRandomPhotos, 
-  setCount, 
-  setOrientation, 
-  clearError 
-} from '../store/slices/randomSlice';
+import { generateRandomPhotos, setCount, setOrientation } from '../store/slices/randomSlice';
 import type { RootState, AppDispatch } from '../store/types';
+import { useAsyncOperation } from '@/hooks/useAsyncOperation';
+import { clearError } from '@/store/slices/globalSlice';
 
 export const RandomPage: React.FC = () => {
+
   const dispatch = useDispatch<AppDispatch>();
-  const { photos, loading, error, count, orientation } = useSelector(
+  const [currentRequestId, setCurrentRequestId] = useState<string>('');
+
+  const { photos, count, orientation } = useSelector(
     (state: RootState) => state.random
   );
+
+  const { loading, error } = useAsyncOperation(currentRequestId);
 
   const handleGenerateRandomPhotos = () => {
     const params: any = { count };
     if (orientation) {
       params.orientation = orientation;
     }
-    dispatch(generateRandomPhotos(params));
+    const action = dispatch(generateRandomPhotos(params));
+
+    setCurrentRequestId(action.requestId);
   };
 
   const handleCountChange = (newCount: number) => {
@@ -41,7 +45,9 @@ export const RandomPage: React.FC = () => {
   };
 
   const handleClearError = () => {
-    dispatch(clearError());
+    if (currentRequestId) {
+      dispatch(clearError(currentRequestId));
+    }
   };
 
   return (

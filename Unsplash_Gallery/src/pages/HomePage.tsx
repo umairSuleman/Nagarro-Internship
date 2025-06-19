@@ -1,23 +1,30 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RefreshCw } from 'lucide-react';
-
 import { LoadingSpinner, ImageCard, Pagination, PageHeader, Section, Grid, Button, Alert } from '../components';
-import { fetchHomePhotos, setCurrentPage, clearError } from '../store/slices/homeSlice';
+import { fetchHomePhotos, setCurrentPage } from '../store/slices/homeSlice';
+import { clearError } from '../store/slices/globalSlice';
+import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import type { RootState, AppDispatch } from '../store/types';
 
 export const HomePage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { photos, loading, error, currentPage, perPage } = useSelector(
+  const [currentRequestId, setCurrentRequestId] = useState<string>('');
+  
+  const { photos, currentPage, perPage } = useSelector(
     (state: RootState) => state.home
   );
+  
+  const { loading, error } = useAsyncOperation(currentRequestId);
 
   const loadPhotos = (page: number = 1) => {
     dispatch(setCurrentPage(page));
-    dispatch(fetchHomePhotos({
+    const action = dispatch(fetchHomePhotos({
       page,
       per_page: perPage,
     }));
+    // Store the requestId for tracking this specific operation
+    setCurrentRequestId(action.requestId);
   };
 
   useEffect(() => {
@@ -35,7 +42,9 @@ export const HomePage: React.FC = () => {
   };
 
   const handleClearError = () => {
-    dispatch(clearError());
+    if (currentRequestId) {
+      dispatch(clearError(currentRequestId));
+    }
   };
 
   const refreshAction = (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   LoadingSpinner, 
@@ -20,17 +20,21 @@ import {
   setOrderBy,
   setOrientation,
   setColor,
-  clearError
 } from '../store/slices/searchSlice';
 import type { RootState, AppDispatch } from '../store/types';
 import type { SearchParams } from '../types';
+import { clearError } from '@/store/slices/globalSlice';
+import { useAsyncOperation } from '@/hooks/useAsyncOperation';
+
 
 export const SearchPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const [currentRequestId, setCurrentRequestId] = useState<string>('');
+
+  const {loading, error } = useAsyncOperation(currentRequestId);
+
   const {
     photos,
-    loading,
-    error,
     query,
     total,
     totalPages,
@@ -56,7 +60,9 @@ export const SearchPage: React.FC = () => {
     if (orientation) params.orientation = orientation;
     if (color) params.color = color as any;
     
-    dispatch(searchPhotos(params));
+    const action=dispatch(searchPhotos(params));
+
+    setCurrentRequestId(action.requestId);
   };
 
   const handleSearchSubmit = () => {
@@ -87,7 +93,9 @@ export const SearchPage: React.FC = () => {
   };
 
   const handleClearError = () => {
-    dispatch(clearError());
+    if(currentRequestId){
+      dispatch(clearError(currentRequestId));
+    }
   };
 
   return (
