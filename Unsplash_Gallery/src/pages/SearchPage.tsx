@@ -29,7 +29,7 @@ import { useAsyncOperation } from '@/hooks/useAsyncOperation';
 
 export const SearchPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const [currentRequestId, setCurrentRequestId] = useState<string>('');
+  const [currentRequestId, setCurrentRequestId] = useState('');
 
   const {loading, error } = useAsyncOperation(currentRequestId);
 
@@ -46,7 +46,7 @@ export const SearchPage: React.FC = () => {
   } = useSelector((state: RootState) => state.search);
 
   const handleSearch = (page: number = 1) => {
-    if (!query.trim()) return;
+    if (!query.trim() || loading) return;
 
     dispatch(setCurrentPage(page));
     
@@ -60,7 +60,7 @@ export const SearchPage: React.FC = () => {
     if (orientation) params.orientation = orientation;
     if (color) params.color = color as any;
     
-    const action=dispatch(searchPhotos(params));
+    const action = dispatch(searchPhotos(params));
 
     setCurrentRequestId(action.requestId);
   };

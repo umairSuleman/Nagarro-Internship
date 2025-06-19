@@ -19,6 +19,9 @@ export const globalSlice = createSlice({
       const requestId = action.payload;
       delete state.errors[requestId];
     },
+    clearAllErrors: (state) => {
+      state.errors ={};
+    }
   },
   extraReducers: (builder) => {
     builder

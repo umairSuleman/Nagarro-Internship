@@ -5,11 +5,11 @@ import { LoadingSpinner, ImageCard, Pagination, PageHeader, Section, Grid, Butto
 import { fetchHomePhotos, setCurrentPage } from '../store/slices/homeSlice';
 import { clearError } from '../store/slices/globalSlice';
 import { useAsyncOperation } from '../hooks/useAsyncOperation';
-import type { RootState, AppDispatch } from '../store/types';
+import type { RootState, AppDispatch} from '../store/types';
 
 export const HomePage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const [currentRequestId, setCurrentRequestId] = useState<string>('');
+  const [currentRequestId, setCurrentRequestId] = useState('');
   
   const { photos, currentPage, perPage } = useSelector(
     (state: RootState) => state.home
@@ -17,9 +17,9 @@ export const HomePage: React.FC = () => {
   
   const { loading, error } = useAsyncOperation(currentRequestId);
 
-  const loadPhotos = (page: number = 1) => {
+  const loadPhotos =  (page: number = 1) => {
     dispatch(setCurrentPage(page));
-    const action = dispatch(fetchHomePhotos({
+    const action =  dispatch(fetchHomePhotos({
       page,
       per_page: perPage,
     }));

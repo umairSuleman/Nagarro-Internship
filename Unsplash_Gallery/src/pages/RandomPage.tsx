@@ -18,7 +18,7 @@ import { clearError } from '@/store/slices/globalSlice';
 export const RandomPage: React.FC = () => {
 
   const dispatch = useDispatch<AppDispatch>();
-  const [currentRequestId, setCurrentRequestId] = useState<string>('');
+  const [currentRequestId, setCurrentRequestId] = useState('');
 
   const { photos, count, orientation } = useSelector(
     (state: RootState) => state.random
@@ -27,12 +27,11 @@ export const RandomPage: React.FC = () => {
   const { loading, error } = useAsyncOperation(currentRequestId);
 
   const handleGenerateRandomPhotos = () => {
-    const params: any = { count };
-    if (orientation) {
+    const params: any = {count};
+    if(orientation) {
       params.orientation = orientation;
     }
     const action = dispatch(generateRandomPhotos(params));
-
     setCurrentRequestId(action.requestId);
   };
 
@@ -40,7 +39,10 @@ export const RandomPage: React.FC = () => {
     dispatch(setCount(newCount));
   };
 
-  const handleOrientationChange = (newOrientation: '' | 'landscape' | 'portrait' | 'squarish') => {
+  //orientation type
+  type OrientationType = '' | 'landscape' | 'portrait' | 'squarish';
+
+  const handleOrientationChange = (newOrientation: OrientationType) => {
     dispatch(setOrientation(newOrientation));
   };
 
