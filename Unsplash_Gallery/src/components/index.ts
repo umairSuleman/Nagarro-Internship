@@ -33,4 +33,8 @@ export * from './feedback/StatusMessage';
 export * from './controls/RandomControls';
 export * from './controls/SearchFilters';
 
+//global
+export * from './global/GlobalErrorDisplay';
+export * from './global/GlobalLoading';
+
 

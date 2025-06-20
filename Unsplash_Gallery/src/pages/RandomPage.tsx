@@ -1,38 +1,36 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
-  LoadingSpinner,
   ImageCard,
   PageHeader,
   Section,
   Grid,
   RandomControls,
-  Alert,
   EmptyState
 } from '../components';
 import { generateRandomPhotos, setCount, setOrientation } from '../store/slices/randomSlice';
 import type { RootState, AppDispatch } from '../store/types';
-import { useAsyncOperation } from '@/hooks/useAsyncOperation';
-import { clearError } from '@/store/slices/globalSlice';
 
 export const RandomPage: React.FC = () => {
-
   const dispatch = useDispatch<AppDispatch>();
-  const [currentRequestId, setCurrentRequestId] = useState('');
 
   const { photos, count, orientation } = useSelector(
     (state: RootState) => state.random
   );
 
-  const { loading, error } = useAsyncOperation(currentRequestId);
+  // Check if specifically the random photos are loading
+  const loading = useSelector((state: RootState) => 
+    Object.keys(state.global.loading).some(key => 
+      key.includes('random/generateRandomPhotos') && state.global.loading[key]
+    )
+  );
 
   const handleGenerateRandomPhotos = () => {
     const params: any = {count};
     if(orientation) {
       params.orientation = orientation;
     }
-    const action = dispatch(generateRandomPhotos(params));
-    setCurrentRequestId(action.requestId);
+    dispatch(generateRandomPhotos(params));
   };
 
   const handleCountChange = (newCount: number) => {
@@ -44,12 +42,6 @@ export const RandomPage: React.FC = () => {
 
   const handleOrientationChange = (newOrientation: OrientationType) => {
     dispatch(setOrientation(newOrientation));
-  };
-
-  const handleClearError = () => {
-    if (currentRequestId) {
-      dispatch(clearError(currentRequestId));
-    }
   };
 
   return (
@@ -65,25 +57,14 @@ export const RandomPage: React.FC = () => {
         loading={loading}
       />
 
-      {error && (
-        <Alert 
-          message={error} 
-          type="error" 
-          dismissible 
-          onDismiss={handleClearError}
-        />
-      )}
-
-      {loading && <LoadingSpinner />}
-
-      {photos.length === 0 && !loading && !error && (
+      {photos.length === 0 && !loading && (
         <EmptyState
           title="No photos generated yet"
           description="Click the 'Generate Random' button to get started!"
         />
       )}
 
-      {photos.length > 0 && !loading && (
+      {photos.length > 0 && (
         <Grid cols={4}>
           {photos.map((photo) => (
             <ImageCard key={photo.id} photo={photo} />

@@ -20,7 +20,15 @@ export const globalSlice = createSlice({
       delete state.errors[requestId];
     },
     clearAllErrors: (state) => {
-      state.errors ={};
+      state.errors = {};
+    },
+    // Clear specific loading by requestId
+    clearLoading: (state, action) => {
+      const requestId = action.payload;
+      delete state.loading[requestId];
+    },
+    clearAllLoading: (state) => {
+      state.loading = {};
     }
   },
   extraReducers: (builder) => {
@@ -56,7 +64,7 @@ export const globalSlice = createSlice({
   }
 });
 
-export const { clearError } = globalSlice.actions;
+export const { clearError, clearAllErrors, clearLoading, clearAllLoading } = globalSlice.actions;
 
 // Selector hooks for easy access in components
 export const selectIsLoading = (state: { global: GlobalState }, requestId: string) => 
@@ -64,3 +72,9 @@ export const selectIsLoading = (state: { global: GlobalState }, requestId: strin
 
 export const selectError = (state: { global: GlobalState }, requestId: string) => 
   state.global.errors[requestId] || null;
+
+export const selectGlobalLoading = (state: { global: GlobalState }) => 
+  Object.values(state.global.loading).some(Boolean);
+
+export const selectGlobalErrors = (state: { global: GlobalState }) => 
+  Object.values(state.global.errors).filter(Boolean);

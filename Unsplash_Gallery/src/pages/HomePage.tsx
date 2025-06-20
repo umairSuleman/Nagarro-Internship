@@ -1,30 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RefreshCw } from 'lucide-react';
-import { LoadingSpinner, ImageCard, Pagination, PageHeader, Section, Grid, Button, Alert } from '../components';
+import { ImageCard, Pagination, PageHeader, Section, Grid, Button } from '../components';
 import { fetchHomePhotos, setCurrentPage } from '../store/slices/homeSlice';
-import { clearError } from '../store/slices/globalSlice';
-import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import type { RootState, AppDispatch} from '../store/types';
 
 export const HomePage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const [currentRequestId, setCurrentRequestId] = useState('');
   
   const { photos, currentPage, perPage } = useSelector(
     (state: RootState) => state.home
   );
   
-  const { loading, error } = useAsyncOperation(currentRequestId);
+  // Check if specifically the home photos are loading
+  const loading = useSelector((state: RootState) => 
+    Object.keys(state.global.loading).some(key => 
+      key.includes('home/fetchPhotos') && state.global.loading[key]
+    )
+  );
 
-  const loadPhotos =  (page: number = 1) => {
+  const loadPhotos = (page: number = 1) => {
     dispatch(setCurrentPage(page));
-    const action =  dispatch(fetchHomePhotos({
+    dispatch(fetchHomePhotos({
       page,
       per_page: perPage,
     }));
-    // Store the requestId for tracking this specific operation
-    setCurrentRequestId(action.requestId);
   };
 
   useEffect(() => {
@@ -39,12 +39,6 @@ export const HomePage: React.FC = () => {
 
   const handleRefresh = () => {
     loadPhotos(currentPage);
-  };
-
-  const handleClearError = () => {
-    if (currentRequestId) {
-      dispatch(clearError(currentRequestId));
-    }
   };
 
   const refreshAction = (
@@ -65,33 +59,20 @@ export const HomePage: React.FC = () => {
         action={refreshAction}
       />
 
-      {error && (
-        <Alert 
-          message={error} 
-          type="error" 
-          dismissible 
-          onDismiss={handleClearError}
+      <Section>
+        <Grid cols={4}>
+          {photos.map((photo) => (
+            <ImageCard key={photo.id} photo={photo} />
+          ))}
+        </Grid>
+
+        <Pagination
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+          hasMore={photos.length === perPage}
+          loading={loading}
         />
-      )}
-
-      {loading ? (
-        <LoadingSpinner />
-      ) : (
-        <Section>
-          <Grid cols={4}>
-            {photos.map((photo) => (
-              <ImageCard key={photo.id} photo={photo} />
-            ))}
-          </Grid>
-
-          <Pagination
-            currentPage={currentPage}
-            onPageChange={handlePageChange}
-            hasMore={photos.length === perPage}
-            loading={loading}
-          />
-        </Section>
-      )}
+      </Section>
     </Section>
   );
 };

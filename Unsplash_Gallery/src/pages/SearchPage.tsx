@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
-  LoadingSpinner, 
   ImageCard, 
   Pagination,
   PageHeader,
@@ -23,15 +22,16 @@ import {
 } from '../store/slices/searchSlice';
 import type { RootState, AppDispatch } from '../store/types';
 import type { SearchParams } from '../types';
-import { clearError } from '@/store/slices/globalSlice';
-import { useAsyncOperation } from '@/hooks/useAsyncOperation';
-
 
 export const SearchPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const [currentRequestId, setCurrentRequestId] = useState('');
 
-  const {loading, error } = useAsyncOperation(currentRequestId);
+  // Check if specifically the search is loading
+  const loading = useSelector((state: RootState) => 
+    Object.keys(state.global.loading).some(key => 
+      key.includes('search/searchPhotos') && state.global.loading[key]
+    )
+  );
 
   const {
     photos,
@@ -60,9 +60,7 @@ export const SearchPage: React.FC = () => {
     if (orientation) params.orientation = orientation;
     if (color) params.color = color as any;
     
-    const action = dispatch(searchPhotos(params));
-
-    setCurrentRequestId(action.requestId);
+    dispatch(searchPhotos(params));
   };
 
   const handleSearchSubmit = () => {
@@ -92,12 +90,6 @@ export const SearchPage: React.FC = () => {
     dispatch(setColor(newColor));
   };
 
-  const handleClearError = () => {
-    if(currentRequestId){
-      dispatch(clearError(currentRequestId));
-    }
-  };
-
   return (
     <Section>
       <PageHeader title="Search Photos" />
@@ -122,17 +114,6 @@ export const SearchPage: React.FC = () => {
         />
       </FormCard>
 
-      {error && (
-        <Alert 
-          message={error} 
-          type="error" 
-          dismissible 
-          onDismiss={handleClearError}
-        />
-      )}
-
-      {loading && <LoadingSpinner />}
-
       {hasSearched && !loading && photos.length === 0 && (
         <Alert 
           message={`No photos found for "${query}". Try a different search term or adjust your filters.`}
@@ -140,7 +121,7 @@ export const SearchPage: React.FC = () => {
         />
       )}
 
-      {photos.length > 0 && !loading && (
+      {photos.length > 0 && (
         <Section>
           <StatusMessage
             query={query}
