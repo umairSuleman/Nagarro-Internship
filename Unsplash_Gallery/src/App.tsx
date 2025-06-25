@@ -11,6 +11,7 @@ import './styles/index.css';
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('home');
+  const [authChecked, setAuthChecked] = useState(false);
   const dispatch = useDispatch<AppDispatch>();
   
   // Global loading and error state
@@ -27,13 +28,25 @@ const AppContent: React.FC = () => {
 
   // Check for OAuth callback
   const isOAuthCallback = window.location.search.includes('code=') || window.location.search.includes('error=');
+  console.log('App render:', {
+    currentURL: window.location.href,
+    searchParams: window.location.search,
+    isOAuthCallback,
+    activeTab
+  });
+  
 
-  // Check auth status on app load
+  // Only check auth status once on app load, and not during OAuth callback
   useEffect(() => {
-    if (!isOAuthCallback) {
-      dispatch(checkAuthStatus());
+    if (!isOAuthCallback && !authChecked) {
+      console.log('Checking auth status on app load...');
+      dispatch(checkAuthStatus()).finally(() => {
+        setAuthChecked(true);
+      });
+    } else if (isOAuthCallback) {
+      setAuthChecked(true);
     }
-  }, [dispatch, isOAuthCallback]);
+  }, [dispatch, isOAuthCallback, authChecked]);
 
   const renderContent = () => {
     // Handle OAuth callback

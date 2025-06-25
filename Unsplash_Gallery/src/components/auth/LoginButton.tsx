@@ -1,5 +1,3 @@
-// src/components/auth/LoginButton.tsx
-
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { LogIn, LogOut } from 'lucide-react';
@@ -14,17 +12,27 @@ export const LoginButton: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useSelector((state: RootState) => state.auth);
 
   const handleLogin = () => {
-    authService.login();
+    console.log('Login button clicked');
+    console.log('Current auth state:', { isAuthenticated, user, isLoading });
+    try {
+      authService.login();
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
   };
 
   const handleLogout = () => {
+    console.log('Logout button clicked');
     dispatch(logout());
   };
+
+  console.log('LoginButton render - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
 
   if (isLoading) {
     return (
       <Button disabled variant="secondary" size="sm">
         <LoadingSpinner />
+        <span>Loading...</span>
       </Button>
     );
   }

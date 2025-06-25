@@ -154,7 +154,17 @@ export class SecureTokenStorage {
    * Check if any valid token exists
    */
   hasValidToken(): boolean {
-    return this.memoryToken !== null || this.getRefreshToken() !== null;
+    const memoryToken = this.memoryToken;
+    const refreshToken = this.getRefreshToken();
+    const hasToken = memoryToken !== null || refreshToken !== null;
+    
+    console.log('Token check:', {
+      hasMemoryToken: !!memoryToken,
+      hasRefreshToken: !!refreshToken,
+      overall: hasToken
+    });
+    
+    return hasToken;
   }
 }
 

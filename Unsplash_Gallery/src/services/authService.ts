@@ -13,6 +13,12 @@ class AuthService {
       scope: 'public read_user write_user',
       responseType: 'code'
     };
+
+    console.log('AuthService initialized with config:', {
+      clientId: this.config.clientId ? 'Set' : 'Missing',
+      redirectUri: this.config.redirectUri,
+      scope: this.config.scope
+    });
   }
 
   /**
@@ -27,7 +33,9 @@ class AuthService {
       scope: this.config.scope,
     });
 
-    return `https://unsplash.com/oauth/authorize?${params.toString()}`;
+    const authUrl = `https://unsplash.com/oauth/authorize?${params.toString()}`;
+    console.log('Generated auth URL:', authUrl);
+    return authUrl;
   }
 
   /**
@@ -35,27 +43,45 @@ class AuthService {
    * Called after user returns from Unsplash authorization
    */
   async exchangeCodeForToken(code: string): Promise<AuthTokens> {
+    console.log('Exchanging code for token:', code);
+    
     try {
-      // In production, this should go through your backend for security
+      const requestBody = {
+        client_id: this.config.clientId,
+        client_secret: import.meta.env.VITE_ACCESS_SECRET,
+        redirect_uri: this.config.redirectUri,
+        code,
+        grant_type: 'authorization_code',
+      };
+
+      console.log('Token exchange request:', {
+        ...requestBody,
+        client_secret: requestBody.client_secret ? 'Set' : 'Missing'
+      });
+
       const response = await fetch('https://unsplash.com/oauth/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          client_id: this.config.clientId,
-          client_secret: import.meta.env.VITE_UNSPLASH_CLIENT_SECRET, // Should be on backend
-          redirect_uri: this.config.redirectUri,
-          code,
-          grant_type: 'authorization_code',
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('Token exchange response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`Token exchange failed: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Token exchange failed:', response.status, errorText);
+        throw new Error(`Token exchange failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const tokens: AuthTokens = await response.json();
+      console.log('Tokens received:', {
+        access_token: tokens.access_token ? 'Set' : 'Missing',
+        refresh_token: tokens.refresh_token ? 'Set' : 'Missing',
+        token_type: tokens.token_type,
+        scope: tokens.scope
+      });
       
       // Store tokens securely
       tokenStorage.setAccessToken(tokens.access_token);
@@ -66,6 +92,9 @@ class AuthService {
       return tokens;
     } catch (error) {
       console.error('Token exchange error:', error);
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error('Failed to exchange authorization code for tokens');
     }
   }
@@ -79,6 +108,8 @@ class AuthService {
       throw new Error('No access token available');
     }
 
+    console.log('Fetching current user with token');
+
     try {
       const response = await fetch('https://api.unsplash.com/me', {
         headers: {
@@ -86,18 +117,28 @@ class AuthService {
         },
       });
 
+      console.log('Get user response status:', response.status);
+
       if (!response.ok) {
         if (response.status === 401) {
+          console.log('Token expired, attempting refresh...');
           // Token expired, try to refresh
           await this.refreshAccessToken();
           return this.getCurrentUser(); // Retry with new token
         }
-        throw new Error(`Failed to fetch user: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Failed to fetch user:', response.status, errorText);
+        throw new Error(`Failed to fetch user: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const user = await response.json();
+      console.log('User fetched successfully:', user.username);
+      return user;
     } catch (error) {
       console.error('Get user error:', error);
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error('Failed to fetch user profile');
     }
   }
@@ -119,7 +160,7 @@ class AuthService {
         },
         body: JSON.stringify({
           client_id: this.config.clientId,
-          client_secret: import.meta.env.VITE_UNSPLASH_CLIENT_SECRET,
+          client_secret: import.meta.env.VITE_ACCESS_SECRET,
           refresh_token: refreshToken,
           grant_type: 'refresh_token',
         }),
@@ -147,6 +188,7 @@ class AuthService {
    * Initiate login flow
    */
   login(): void {
+    console.log('Initiating login flow...');
     const authUrl = this.getAuthorizationUrl();
     window.location.href = authUrl;
   }
@@ -155,6 +197,7 @@ class AuthService {
    * Logout user and clear tokens
    */
   logout(): void {
+    console.log('Logging out user...');
     tokenStorage.clearTokens();
   }
 
@@ -162,7 +205,9 @@ class AuthService {
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
-    return tokenStorage.hasValidToken();
+    const hasToken = tokenStorage.hasValidToken();
+    console.log('Is authenticated:', hasToken);
+    return hasToken;
   }
 
   /**

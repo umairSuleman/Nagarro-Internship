@@ -31,17 +31,25 @@ export const getCurrentUser = createAsyncThunk(
 // Async thunk for checking authentication status on app load
 export const checkAuthStatus = createAsyncThunk(
   'auth/checkAuthStatus',
-  async () => {
-    if (authService.isAuthenticated()) {
-      const user = await authService.getCurrentUser();
-      return {
-        user,
-        accessToken: authService.getAccessToken(),
-      };
+  async (_, { rejectWithValue }) => {
+    try {
+      console.log('Checking auth status...');
+      if (authService.isAuthenticated()) {
+        console.log('User appears to be authenticated, fetching user data...');
+        const user = await authService.getCurrentUser();
+        const accessToken = authService.getAccessToken();
+        console.log('Auth check successful:', { user: user.username, tokenExists: !!accessToken });
+        return { user, accessToken };
+      }
+      console.log('User not authenticated');
+      return null;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Auth check failed');
     }
-    return null;
   }
 );
+
 
 export const authSlice = createSlice({
   name: 'auth',
