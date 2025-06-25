@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Provider, useSelector } from 'react-redux';
+import React, { useState, useEffect } from 'react';
+import { Provider, useSelector, useDispatch } from 'react-redux';
 import { store } from './store';
 import { Navigation, LoadingSpinner, Alert } from './components';
 import { HomePage, SearchPage, RandomPage } from './pages';
+import { OAuthCallback } from './components/auth/OAuthCallback';
 import { clearAllErrors } from './store/slices/globalSlice';
-import { useDispatch } from 'react-redux';
+import { checkAuthStatus } from './store/slices/authSlice';
 import type { RootState, AppDispatch } from './store/types';
 import './styles/index.css';
 
@@ -12,7 +13,7 @@ const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('home');
   const dispatch = useDispatch<AppDispatch>();
   
-  //Global loading and error state
+  // Global loading and error state
   const globalLoading = useSelector((state: RootState) => 
     Object.values(state.global.loading).some(Boolean)
   );
@@ -21,7 +22,39 @@ const AppContent: React.FC = () => {
     Object.values(state.global.errors).filter(Boolean)
   );
 
+  // Auth state
+  const authLoading = useSelector((state: RootState) => state.auth.isLoading);
+
+  // Check for OAuth callback
+  const isOAuthCallback = window.location.search.includes('code=') || window.location.search.includes('error=');
+
+  // Check auth status on app load
+  useEffect(() => {
+    if (!isOAuthCallback) {
+      dispatch(checkAuthStatus());
+    }
+  }, [dispatch, isOAuthCallback]);
+
   const renderContent = () => {
+    // Handle OAuth callback
+    if (isOAuthCallback) {
+      return (
+        <OAuthCallback
+          onSuccess={() => {
+            setActiveTab('home');
+            dispatch(checkAuthStatus());
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }}
+          onError={(error) => {
+            console.error('OAuth error:', error);
+            setActiveTab('home');
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }}
+        />
+      );
+    }
+
+    // Render normal content
     switch(activeTab) {
       case 'home':
         return <HomePage />;
@@ -42,11 +75,13 @@ const AppContent: React.FC = () => {
     <div className="min-h-screen bg-gray-100 relative">
       <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
       
-      {globalLoading && (
+      {(globalLoading || (authLoading && !isOAuthCallback)) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <LoadingSpinner />
-            <p className="text-center mt-4 text-gray-600">Loading...</p>
+            <p className="text-center mt-4 text-gray-600">
+              {authLoading ? 'Authenticating...' : 'Loading...'}
+            </p>
           </div>
         </div>
       )}

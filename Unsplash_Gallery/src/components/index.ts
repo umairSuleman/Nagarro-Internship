@@ -33,8 +33,12 @@ export * from './feedback/StatusMessage';
 export * from './controls/RandomControls';
 export * from './controls/SearchFilters';
 
-//global
-export * from './global/GlobalErrorDisplay';
-export * from './global/GlobalLoading';
+//Global
+export * from '../core/global/GlobalErrorDisplay';
+export * from '../core/global/GlobalLoading';
+
+//Auth
+export * from './auth/LoginButton';
+export * from './auth/OAuthCallback';
 
 

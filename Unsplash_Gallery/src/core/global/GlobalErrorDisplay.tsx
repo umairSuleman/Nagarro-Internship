@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Alert } from '../feedback/Alert';
+import { Alert } from '../../components/feedback/Alert';
 import { clearAllErrors } from '@/store/slices/globalSlice';
 import type { RootState, AppDispatch } from '@/store';
 

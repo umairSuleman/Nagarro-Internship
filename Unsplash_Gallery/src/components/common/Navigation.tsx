@@ -1,5 +1,6 @@
 import React from 'react';
 import { Home, Shuffle, Search } from 'lucide-react';
+import { LoginButton } from '@/components/auth/LoginButton';
 
 interface NavigationProps {
   activeTab: string;
@@ -18,21 +19,28 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab 
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <h1 className="text-xl font-bold">Unsplash Gallery</h1>
-          <div className="flex space-x-1">
-            {tabs.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors duration-200 ${
-                  activeTab === id
-                    ? 'bg-blue-800 text-white'
-                    : 'text-blue-100 hover:bg-blue-700'
-                }`}
-              >
-                <Icon size={20} />
-                <span>{label}</span>
-              </button>
-            ))}
+          
+          <div className="flex items-center space-x-4">
+            {/* Navigation tabs */}
+            <div className="flex space-x-1">
+              {tabs.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors duration-200 ${
+                    activeTab === id
+                      ? 'bg-blue-800 text-white'
+                      : 'text-blue-100 hover:bg-blue-700'
+                  }`}
+                >
+                  <Icon size={20} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+            
+            {/* Login/Logout button */}
+            <LoginButton />
           </div>
         </div>
       </div>

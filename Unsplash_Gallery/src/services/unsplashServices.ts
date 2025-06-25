@@ -1,6 +1,6 @@
 
 import axios from "axios";
-
+import { authService } from "./authService";
 import type {
     CommonParams,
     SearchParams,
@@ -14,15 +14,44 @@ export class UnsplashService{
     private axiosInstance;
 
     constructor(){
-        // Create axios instance with env var
         this.axiosInstance = axios.create({
             baseURL: import.meta.env.VITE_BASE_URL,
-            headers: {
-                'Authorization': `Client-ID ${import.meta.env.VITE_API_KEY}`
+        });   
+
+        this.axiosInstance.interceptors.request.use(
+            (config) => {
+                const token = authService.getAccessToken();
+                if(token) {
+                    config.headers['Authorization']=`Bearer ${token}`;
+                }
+                else{
+                    config.headers['Authorization']=`Client-ID ${import.meta.env.VITE_API_KEY}`;
+                }
+                return config;
+            },
+            (error) => {
+                return Promise.reject(error);
             }
-        });
-        
+        );
+
+        this.axiosInstance.interceptors.response.use(
+            (response) => response,
+            async (error) => {
+                if(error.response?.status === 401 && authService.isAuthenticated()){
+                    try{
+                        authService.logout();
+                        window.location.reload();
+                    }
+                    catch{
+                        authService.logout();
+                        window.location.reload();
+                    }
+                }
+                return Promise.reject(error);
+            }
+        );
     }
+
 
     private async makeRequest<T>(endpoint: string, params: Record<string, any> = {}): Promise<T> {
         try {
@@ -59,6 +88,49 @@ export class UnsplashService{
         };
 
         return this.makeRequest<SearchResponse>('/search/photos', defaultParams);
+    }
+
+    // Like a photo (requires authentication)
+    async likePhoto(photoId: string): Promise<void> {
+        if (!authService.isAuthenticated()) {
+            throw new Error('Authentication required to like photos');
+        }
+        
+        try {
+            await this.axiosInstance.post(`/photos/${photoId}/like`);
+        } catch (error) {
+            console.error('Failed to like photo:', error);
+            throw error;
+        }
+    }
+
+    // Unlike a photo (requires authentication)
+    async unlikePhoto(photoId: string): Promise<void> {
+        if (!authService.isAuthenticated()) {
+            throw new Error('Authentication required to unlike photos');
+        }
+
+        try {
+            await this.axiosInstance.delete(`/photos/${photoId}/like`);
+        } catch (error) {
+            console.error('Failed to unlike photo:', error);
+            throw error;
+        }
+    }
+
+    // Get user's liked photos (requires authentication)
+    async getUserLikedPhotos(params: CommonParams = {}): Promise<UnsplashPhoto[]> {
+        if (!authService.isAuthenticated()) {
+            throw new Error('Authentication required to get liked photos');
+        }
+
+        const defaultParams = {
+            page: 1,
+            per_page: 12,
+            ...params
+        };
+
+        return this.makeRequest<UnsplashPhoto[]>('/users/me/likes', defaultParams);
     }
 }
 export const unsplashService = new UnsplashService();

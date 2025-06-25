@@ -1,8 +1,9 @@
 import { configureStore } from '@reduxjs/toolkit'
-import { homeSlice } from '@/store/slices/homeSlice';
-import { searchSlice } from '@/store/slices/searchSlice';
-import { randomSlice } from '@/store/slices/randomSlice';
+import { homeSlice } from './slices/homeSlice';
+import { searchSlice } from './slices/searchSlice';
+import { randomSlice } from './slices/randomSlice';
 import { globalSlice } from './slices/globalSlice';
+import { authSlice } from './slices/authSlice';
 
 export const store = configureStore ({
     reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore ({
         random: randomSlice.reducer,
         search: searchSlice.reducer,
         global: globalSlice.reducer,
+        auth: authSlice.reducer,
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
