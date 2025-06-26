@@ -10,7 +10,7 @@ const initialState: AuthState = {
   error: null,
 };
 
-// Async thunk for handling OAuth callback
+//async thunk for handling OAuth callback
 export const handleOAuthCallback = createAsyncThunk(
   'auth/handleOAuthCallback',
   async (code: string) => {
@@ -20,7 +20,7 @@ export const handleOAuthCallback = createAsyncThunk(
   }
 );
 
-// Async thunk for getting current user
+//async thunk for getting current user
 export const getCurrentUser = createAsyncThunk(
   'auth/getCurrentUser',
   async () => {
@@ -28,7 +28,7 @@ export const getCurrentUser = createAsyncThunk(
   }
 );
 
-// Async thunk for checking authentication status on app load
+//async thunk for checking authentication status on app load
 export const checkAuthStatus = createAsyncThunk(
   'auth/checkAuthStatus',
   async (_, { rejectWithValue }) => {
@@ -55,11 +55,9 @@ export const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    // Clear error
     clearError: (state) => {
       state.error = null;
     },
-    // Logout
     logout: (state) => {
       authService.logout();
       state.user = null;
@@ -67,7 +65,7 @@ export const authSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
     },
-    // Set access token directly (for manual token updates)
+    //set access token directly (for manual token updates)
     setAccessToken: (state, action) => {
       state.accessToken = action.payload;
       state.isAuthenticated = !!action.payload;
@@ -75,7 +73,7 @@ export const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Handle OAuth callback
+      //handle OAuth callback
       .addCase(handleOAuthCallback.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -93,7 +91,7 @@ export const authSlice = createSlice({
         state.isAuthenticated = false;
       })
       
-      // Get current user
+      //get current user
       .addCase(getCurrentUser.pending, (state) => {
         state.isLoading = true;
       })
@@ -107,7 +105,7 @@ export const authSlice = createSlice({
         state.error = action.error.message || 'Failed to get user';
       })
       
-      // Check auth status
+      //check auth status
       .addCase(checkAuthStatus.pending, (state) => {
         state.isLoading = true;
       })

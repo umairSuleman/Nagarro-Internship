@@ -1,10 +1,24 @@
-// src/services/authService.ts
-
 import { tokenStorage } from '@/utils/tokenStorage';
 import type { AuthTokens, AuthUser, OAuthConfig } from '@/types/auth';
 
+interface TokenExchangeRequest {
+  client_id: string;
+  client_secret: string;
+  redirect_uri: string;
+  code: string;
+  grant_type: 'authorization_code';
+}
+
+interface AuthError {
+  error: string;
+  error_description?: string;
+}
+
 class AuthService {
   private config: OAuthConfig;
+  private readonly UNSPLASH_API_BASE = import.meta.env.VITE_BASE_URL;
+  private readonly UNSPLASH_OAUTH_BASE = import.meta.env.VITE_OAUTH_URL;
+  private processingCode: string | null = null;
 
   constructor() {
     this.config = {
@@ -14,207 +28,270 @@ class AuthService {
       responseType: 'code'
     };
 
-    console.log('AuthService initialized with config:', {
-      clientId: this.config.clientId ? 'Set' : 'Missing',
-      redirectUri: this.config.redirectUri,
-      scope: this.config.scope
-    });
+    this.validateConfig();
   }
 
-  /**
-   * Step 1: Generate OAuth authorization URL
-   * Redirects user to Unsplash for authentication
-   */
+  private validateConfig(): void {
+    const missing: string[] = [];
+    
+    if (!this.config.clientId) missing.push('VITE_API_KEY');
+    if (!this.config.redirectUri) missing.push('VITE_REDIRECT_URI');
+    if (!import.meta.env.VITE_ACCESS_SECRET) missing.push('VITE_ACCESS_SECRET');
+
+    if (missing.length > 0) {
+      throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    }
+
+    try {
+      new URL(this.config.redirectUri);
+    } catch (error) {
+      throw new Error(`Invalid redirect URI format: ${this.config.redirectUri}`);
+    }
+  }
+
   getAuthorizationUrl(): string {
+    const state = this.generateRandomState();
+    
+    sessionStorage.removeItem('oauth_state');
+    sessionStorage.removeItem('used_oauth_codes');
+    sessionStorage.setItem('oauth_state', state);
+
     const params = new URLSearchParams({
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
       response_type: this.config.responseType,
       scope: this.config.scope,
+      state: state,
     });
 
-    const authUrl = `https://unsplash.com/oauth/authorize?${params.toString()}`;
-    console.log('Generated auth URL:', authUrl);
-    return authUrl;
+    return `${this.UNSPLASH_OAUTH_BASE}/authorize?${params.toString()}`;
   }
 
-  /**
-   * Step 2: Exchange authorization code for access token
-   * Called after user returns from Unsplash authorization
-   */
-  async exchangeCodeForToken(code: string): Promise<AuthTokens> {
-    console.log('Exchanging code for token:', code);
-    
+  async exchangeCodeForToken(code: string, state?: string): Promise<AuthTokens> {
+    if (this.processingCode === code) {
+      throw new Error('Authorization code is already being processed. Please wait.');
+    }
+
+    if (this.isCodeAlreadyUsed(code)) {
+      throw new Error('Authorization code has already been used. Please try logging in again.');
+    }
+
+    this.processingCode = code;
+
     try {
-      const requestBody = {
+      if (state) {
+        const storedState = sessionStorage.getItem('oauth_state');
+        if (!storedState || storedState !== state) {
+          throw new Error('Invalid state parameter - possible CSRF attack');
+        }
+      }
+
+      if (!code?.trim()) {
+        throw new Error('Authorization code is required');
+      }
+
+      this.markCodeAsUsed(code);
+
+      const requestBody: TokenExchangeRequest = {
         client_id: this.config.clientId,
         client_secret: import.meta.env.VITE_ACCESS_SECRET,
         redirect_uri: this.config.redirectUri,
-        code,
+        code: code.trim(),
         grant_type: 'authorization_code',
       };
 
-      console.log('Token exchange request:', {
-        ...requestBody,
-        client_secret: requestBody.client_secret ? 'Set' : 'Missing'
-      });
-
-      const response = await fetch('https://unsplash.com/oauth/token', {
+      const response = await fetch(`${this.UNSPLASH_OAUTH_BASE}/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify(requestBody),
       });
 
-      console.log('Token exchange response status:', response.status);
+      const responseData = await response.json();
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Token exchange failed:', response.status, errorText);
-        throw new Error(`Token exchange failed: ${response.status} ${response.statusText} - ${errorText}`);
+        const authError = responseData as AuthError;
+        throw new Error(this.getHumanReadableError(authError));
       }
 
-      const tokens: AuthTokens = await response.json();
-      console.log('Tokens received:', {
-        access_token: tokens.access_token ? 'Set' : 'Missing',
-        refresh_token: tokens.refresh_token ? 'Set' : 'Missing',
-        token_type: tokens.token_type,
-        scope: tokens.scope
-      });
+      const tokens = responseData as AuthTokens;
+      await this.storeTokens(tokens);
       
-      // Store tokens securely
-      tokenStorage.setAccessToken(tokens.access_token);
-      if (tokens.refresh_token) {
-        await tokenStorage.setRefreshTokenCookie(tokens.refresh_token);
-      }
-
+      sessionStorage.removeItem('oauth_state');
+      
       return tokens;
-    } catch (error) {
-      console.error('Token exchange error:', error);
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Failed to exchange authorization code for tokens');
+
+    } finally {
+      this.processingCode = null;
     }
   }
 
-  /**
-   * Step 3: Get current user profile using access token
-   */
+  private isCodeAlreadyUsed(code: string): boolean {
+    const usedCodes = JSON.parse(sessionStorage.getItem('used_oauth_codes') || '[]');
+    return usedCodes.includes(code);
+  }
+
+  private markCodeAsUsed(code: string): void {
+    const usedCodes = JSON.parse(sessionStorage.getItem('used_oauth_codes') || '[]');
+    usedCodes.push(code);
+    const recentCodes = usedCodes.slice(-10);
+    sessionStorage.setItem('used_oauth_codes', JSON.stringify(recentCodes));
+  }
+
+  async handleCallback(): Promise<AuthUser | null> {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    const error = urlParams.get('error');
+    const errorDescription = urlParams.get('error_description');
+
+    if (error) {
+      throw new Error(`Authentication failed: ${error} - ${errorDescription || 'Unknown error'}`);
+    }
+
+    if (!code) {
+      return null;
+    }
+
+    await this.exchangeCodeForToken(code, state || undefined);
+    return await this.getCurrentUser();
+  }
+
   async getCurrentUser(): Promise<AuthUser> {
     const token = tokenStorage.getAccessToken();
     if (!token) {
-      throw new Error('No access token available');
+      throw new Error('No access token available - please login');
     }
 
-    console.log('Fetching current user with token');
-
-    try {
-      const response = await fetch('https://api.unsplash.com/me', {
+    return this.makeAuthenticatedRequest(async () => {
+      const response = await fetch(`${this.UNSPLASH_API_BASE}/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
         },
       });
 
-      console.log('Get user response status:', response.status);
-
       if (!response.ok) {
         if (response.status === 401) {
-          console.log('Token expired, attempting refresh...');
-          // Token expired, try to refresh
-          await this.refreshAccessToken();
-          return this.getCurrentUser(); // Retry with new token
+          throw new Error('UNAUTHORIZED');
         }
-        const errorText = await response.text();
-        console.error('Failed to fetch user:', response.status, errorText);
-        throw new Error(`Failed to fetch user: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch user profile: ${response.status}`);
       }
 
-      const user = await response.json();
-      console.log('User fetched successfully:', user.username);
-      return user;
+      return await response.json();
+    });
+  }
+
+  private async makeAuthenticatedRequest<T>(
+    apiCall: () => Promise<T>,
+    retryCount = 0
+  ): Promise<T> {
+    try {
+      return await apiCall();
     } catch (error) {
-      console.error('Get user error:', error);
-      if (error instanceof Error) {
-        throw error;
+      if (error instanceof Error && error.message === 'UNAUTHORIZED' && retryCount === 0) {
+        try {
+          await this.refreshAccessToken();
+          return this.makeAuthenticatedRequest(apiCall, 1);
+        } catch (refreshError) {
+          this.logout();
+          throw new Error('Authentication failed - please login again');
+        }
       }
-      throw new Error('Failed to fetch user profile');
+      
+      throw error;
     }
   }
 
-  /**
-   * Refresh access token using refresh token
-   */
   private async refreshAccessToken(): Promise<void> {
     const refreshToken = tokenStorage.getRefreshToken();
     if (!refreshToken) {
       throw new Error('No refresh token available');
     }
 
-    try {
-      const response = await fetch('https://unsplash.com/oauth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          client_id: this.config.clientId,
-          client_secret: import.meta.env.VITE_ACCESS_SECRET,
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token',
-        }),
-      });
+    const response = await fetch(`${this.UNSPLASH_OAUTH_BASE}/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: this.config.clientId,
+        client_secret: import.meta.env.VITE_ACCESS_SECRET,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
 
-      if (!response.ok) {
-        throw new Error('Token refresh failed');
-      }
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Token refresh failed: ${errorData.error_description || 'Unknown error'}`);
+    }
 
-      const tokens: AuthTokens = await response.json();
-      tokenStorage.setAccessToken(tokens.access_token);
-      
-      if (tokens.refresh_token) {
-        await tokenStorage.setRefreshTokenCookie(tokens.refresh_token);
-      }
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      // Clear tokens and force re-login
-      tokenStorage.clearTokens();
-      throw new Error('Token refresh failed - please login again');
+    const tokens: AuthTokens = await response.json();
+    await this.storeTokens(tokens);
+  }
+
+  private async storeTokens(tokens: AuthTokens): Promise<void> {
+    tokenStorage.setAccessToken(tokens.access_token);
+    
+    if (tokens.refresh_token) {
+      await tokenStorage.setRefreshTokenCookie(tokens.refresh_token);
     }
   }
 
-  /**
-   * Initiate login flow
-   */
+  private generateRandomState(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  private getHumanReadableError(authError: AuthError): string {
+    switch (authError.error) {
+      case 'invalid_grant':
+        return 'Authorization code is invalid, expired, or has already been used. Please try logging in again.';
+      case 'invalid_client':
+        return 'Invalid client credentials. Please check your API configuration.';
+      case 'invalid_request':
+        return 'Invalid request format. Please contact support if this persists.';
+      case 'unauthorized_client':
+        return 'This application is not authorized to use this grant type.';
+      case 'unsupported_grant_type':
+        return 'The authorization grant type is not supported.';
+      case 'invalid_scope':
+        return 'The requested scope is invalid or not supported.';
+      default:
+        return authError.error_description || `Authentication failed: ${authError.error}`;
+    }
+  }
+
   login(): void {
-    console.log('Initiating login flow...');
+    this.clearUsedCodes();
     const authUrl = this.getAuthorizationUrl();
     window.location.href = authUrl;
   }
 
-  /**
-   * Logout user and clear tokens
-   */
   logout(): void {
-    console.log('Logging out user...');
     tokenStorage.clearTokens();
+    sessionStorage.removeItem('oauth_state');
+    sessionStorage.removeItem('used_oauth_codes');
+    this.processingCode = null;
   }
 
-  /**
-   * Check if user is authenticated
-   */
   isAuthenticated(): boolean {
-    const hasToken = tokenStorage.hasValidToken();
-    console.log('Is authenticated:', hasToken);
-    return hasToken;
+    return tokenStorage.hasValidToken();
   }
 
-  /**
-   * Get stored access token
-   */
   getAccessToken(): string | null {
     return tokenStorage.getAccessToken();
+  }
+
+  private clearUsedCodes(): void {
+    sessionStorage.removeItem('used_oauth_codes');
+    this.processingCode = null;
   }
 }
 

@@ -1,4 +1,3 @@
-// src/utils/tokenStorage.ts
 
 /**
  * Secure Token Storage Utility
@@ -13,7 +12,7 @@
 import CryptoJS from 'crypto-js';
 
 const STORAGE_KEY = 'unsplash_refresh_token';
-const ENCRYPTION_SECRET = 'your-encryption-secret-key'; // In production, use env variable
+const ENCRYPTION_SECRET = import.meta.env.VITE_ENCRYPTION_CODE; 
 
 interface StoredTokenData {
   token: string;
@@ -26,7 +25,7 @@ export class SecureTokenStorage {
   private memoryToken: string | null = null;
 
   private constructor() {
-    // Cleanup tokens on page unload for security
+    //cleanup tokens on page unload for security
     window.addEventListener('beforeunload', this.cleanup.bind(this));
   }
 

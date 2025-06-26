@@ -84,7 +84,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Check for existing authentication on app start
+  //check for existing authentication on app start
   useEffect(() => {
     const checkAuth = async () => {
       try {
