@@ -3,6 +3,7 @@
 export * from './common/LoadingSpinner';
 export * from './common/Navigation';
 export * from './common/Pagination';
+export * from './common/InfiniteScrollLoader'
 
 //ui
 export * from './ui/imageCard';

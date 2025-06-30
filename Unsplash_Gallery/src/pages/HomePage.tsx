@@ -1,14 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RefreshCw } from 'lucide-react';
-import { ImageCard, Pagination, PageHeader, Section, Grid, Button } from '../components';
-import { fetchHomePhotos, setCurrentPage } from '../store/slices/homeSlice';
-import type { RootState, AppDispatch} from '../store/types';
+import { ImageCard, PageHeader, Section, Grid, Button } from '../components';
+import { InfiniteScrollLoader } from '../components/common/InfiniteScrollLoader';
+import { fetchHomePhotos, setCurrentPage, resetPhotos } from '../store/slices/homeSlice';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import type { RootState, AppDispatch } from '../store/types';
 
 export const HomePage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   
-  const { photos, currentPage, perPage } = useSelector(
+  const { photos, currentPage, perPage, hasMore, isInitialLoad } = useSelector(
     (state: RootState) => state.home
   );
   
@@ -19,29 +21,68 @@ export const HomePage: React.FC = () => {
     )
   );
 
-  const loadPhotos = (page: number = 1) => {
-    dispatch(setCurrentPage(page));
+  // Get loading error if any
+  const error = useSelector((state: RootState) => 
+    Object.entries(state.global.errors).find(([key]) => 
+      key.includes('home/fetchPhotos')
+    )?.[1] || null
+  );
+
+  // Memoize the loadPhotos function to prevent unnecessary recreations
+  const loadPhotos = useCallback((page: number = 1, append: boolean = false) => {
+    if (append) {
+      dispatch(setCurrentPage(page));
+    }
     dispatch(fetchHomePhotos({
       page,
       per_page: perPage,
+      append
     }));
-  };
+  }, [dispatch, perPage]);
 
-  useEffect(() => {
-    loadPhotos();
-  }, []);
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1) {
-      loadPhotos(newPage);
+  // Memoize loadMorePhotos and add loading check
+  const loadMorePhotos = useCallback(() => {
+    if (hasMore && !loading && currentPage) {
+      const nextPage = currentPage + 1;
+      loadPhotos(nextPage, true);
     }
-  };
+  }, [hasMore, loading, currentPage, loadPhotos]);
 
-  const handleRefresh = () => {
-    loadPhotos(currentPage);
-  };
+  // Infinite scroll hook with stable options
+  const infiniteScrollOptions = useMemo(() => ({
+    hasMore,
+    loading,
+    threshold: 0.1,
+    rootMargin: '200px'
+  }), [hasMore, loading]);
 
-  const refreshAction = (
+  const { loadMoreRef, isIntersecting } = useInfiniteScroll(infiniteScrollOptions);
+
+  // Load more when intersecting - add debouncing
+  useEffect(() => {
+    if (isIntersecting && !isInitialLoad && !loading) {
+      // Add a small delay to prevent rapid firing
+      const timeoutId = setTimeout(() => {
+        loadMorePhotos();
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isIntersecting, loadMorePhotos, isInitialLoad, loading]);
+
+  // Initial load - only run once
+  useEffect(() => {
+    if (photos.length === 0 && !loading) {
+      loadPhotos();
+    }
+  }, []); // Remove dependencies to run only once
+
+  const handleRefresh = useCallback(() => {
+    dispatch(resetPhotos());
+    loadPhotos(1, false);
+  }, [dispatch, loadPhotos]);
+
+  const refreshAction = useMemo(() => (
     <Button
       onClick={handleRefresh}
       disabled={loading}
@@ -50,7 +91,7 @@ export const HomePage: React.FC = () => {
     >
       Refresh
     </Button>
-  );
+  ), [handleRefresh, loading]);
 
   return (
     <Section>
@@ -66,11 +107,13 @@ export const HomePage: React.FC = () => {
           ))}
         </Grid>
 
-        <Pagination
-          currentPage={currentPage}
-          onPageChange={handlePageChange}
-          hasMore={photos.length === perPage}
+        {/* Infinite scroll loader */}
+        <InfiniteScrollLoader
           loading={loading}
+          hasMore={hasMore}
+          loadMoreRef={loadMoreRef}
+          error={error}
+          onRetry={loadMorePhotos}
         />
       </Section>
     </Section>

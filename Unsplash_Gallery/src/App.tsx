@@ -23,9 +23,6 @@ const AppContent: React.FC = () => {
     Object.values(state.global.errors).filter(Boolean)
   );
 
-  //Auth state
-  const authLoading = useSelector((state: RootState) => state.auth.isLoading);
-
   //check for OAuth callback
   const isOAuthCallback = window.location.search.includes('code=') || window.location.search.includes('error=');
   console.log('App render:', {
@@ -85,13 +82,11 @@ const AppContent: React.FC = () => {
     <div className="min-h-screen bg-gray-100 relative">
       <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
       
-      {(globalLoading || (authLoading && !isOAuthCallback)) && (
+      {globalLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <LoadingSpinner />
-            <p className="text-center mt-4 text-gray-600">
-              {authLoading ? 'Authenticating...' : 'Loading...'}
-            </p>
+            <p className="text-center mt-4 text-gray-600">Loading...</p>
           </div>
         </div>
       )}

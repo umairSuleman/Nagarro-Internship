@@ -9,31 +9,35 @@ interface SearchState {
   totalPages: number;
   currentPage: number;
   hasSearched: boolean;
+  hasMore: boolean;
   orderBy: 'relevant' | 'latest';
   orientation: '' | 'landscape' | 'portrait' | 'squarish';
   color: string;
+  isInitialSearch: boolean;
 }
 
 const initialState: SearchState = {
   photos: [],
   query: '',
-  total:0,
+  total: 0,
   totalPages: 0,
   currentPage: 1,
   hasSearched: false,
+  hasMore: false,
   orderBy: 'relevant',
   orientation: '',
   color: '',
+  isInitialSearch: true,
 };
 
 export const searchPhotos = createAsyncThunk(
   'search/searchPhotos',
-  async (params: SearchParams) => {
+  async (params: SearchParams & { append?: boolean }) => {
     const response = await unsplashService.searchPhotos({
       ...params,
-      content_filter:'low',
+      content_filter: 'low',
     });
-    return response;
+    return { ...response, append: params.append || false };
   }
 );
 
@@ -57,22 +61,48 @@ export const searchSlice = createSlice({
       state.color = action.payload;
     },
     resetSearch: (state) => {
-      state.photos= [];
-      state.total=0;
-      state.totalPages=0;
-      state.currentPage=1;
-      state.hasSearched=false;
+      state.photos = [];
+      state.total = 0;
+      state.totalPages = 0;
+      state.currentPage = 1;
+      state.hasSearched = false;
+      state.hasMore = false;
+      state.isInitialSearch = true;
     },
+    setHasMore: (state, action) => {
+      state.hasMore = action.payload;
+    }
   },
   extraReducers: (builder) => {
     builder
-      .addCase(searchPhotos.pending, (state) => {
+      .addCase(searchPhotos.pending, (state, action) => {
         state.hasSearched = true;
+        // Only reset photos if it's a new search (not append)
+        if (!action.meta.arg.append) {
+          state.photos = [];
+          state.currentPage = 1;
+          state.isInitialSearch = false;
+        }
       })
       .addCase(searchPhotos.fulfilled, (state, action) => {
-        state.photos= action.payload.results;
-        state.total = action.payload.total;
-        state.totalPages = action.payload.total_pages;
+        const { results, total, total_pages, append } = action.payload;
+        
+        state.total = total;
+        state.totalPages = total_pages;
+        
+        if (append) {
+          // Append new photos for infinite scroll
+          const newPhotos = results.filter(
+            newPhoto => !state.photos.some(existingPhoto => existingPhoto.id === newPhoto.id)
+          );
+          state.photos = [...state.photos, ...newPhotos];
+        } else {
+          // Replace photos for new search
+          state.photos = results;
+        }
+        
+        // Update hasMore based on current page vs total pages
+        state.hasMore = state.currentPage < total_pages;
       });
   },
 });
@@ -84,4 +114,5 @@ export const {
   setOrientation,
   setColor,
   resetSearch,
+  setHasMore,
 } = searchSlice.actions;
