@@ -4,6 +4,7 @@ import { handleOAuthCallback } from '@/store/slices/authSlice';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Alert } from '@/components/feedback/Alert';
 import type { RootState, AppDispatch } from '@/store';
+import { selectError, selectIsLoading } from '@/store/slices/globalSlice';
 
 interface OAuthCallbackProps {
   onSuccess?: () => void;
@@ -15,16 +16,25 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({
   onError 
 }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { error, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+
+  //global selectors for loading and error states
+  const isHandlingCallback = useSelector ((state: RootState) => 
+    selectIsLoading(state, 'auth/handleOAuthCallback')
+  );
+  const callbackError = useSelector((state : RootState) => 
+    selectError(state, 'auth/handleOAuthCallback')
+  );
+
   const [hasProcessed, setHasProcessed] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  
+  const [localError, setLocalError] = useState<string | null> (null);
+
   //use ref to prevent race conditions
   const processingRef = useRef(false);
 
   useEffect(() => {
     //prevent multiple processing attempts
-    if (hasProcessed || isProcessing || processingRef.current) {
+    if (hasProcessed || isHandlingCallback || processingRef.current) {
       console.log('OAuth callback already processed or in progress');
       return;
     }
@@ -43,6 +53,7 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({
       const errorMessage = errorDescription || `Authentication failed: ${errorParam}`;
       console.error('OAuth Error:', errorMessage);
       setHasProcessed(true);
+      setLocalError(errorMessage);
       onError?.(errorMessage);
       return;
     }
@@ -50,13 +61,13 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({
     if (!code) {
       console.error('No authorization code received');
       setHasProcessed(true);
+      setLocalError('No authorization code received');
       onError?.('No authorization code received');
       return;
     }
 
     //setting processing flags
     processingRef.current = true;
-    setIsProcessing(true);
     setHasProcessed(true);
 
     //clear URL parameters immediately to prevent reprocessing
@@ -69,25 +80,26 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({
       .unwrap()
       .then(() => {
         console.log('OAuth callback successful');
-        setIsProcessing(false);
         setTimeout(() => {
           onSuccess?.();
         }, 1000);
       })
       .catch((error) => {
         console.error('OAuth callback failed:', error);
-        setIsProcessing(false);
         onError?.(error.message || 'Authentication failed');
       });
   }, []); 
 
+  //determine the error to display
+  const displayError = localError || callbackError;
+
   //error state
-  if (error && hasProcessed) {
+  if (displayError && hasProcessed) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="max-w-md w-full">
           <Alert 
-            message={error} 
+            message={displayError} 
             type="error" 
             className="mb-4"
           />
@@ -105,7 +117,7 @@ export const OAuthCallback: React.FC<OAuthCallbackProps> = ({
   }
 
   //success state
-  if (isAuthenticated && hasProcessed && !isProcessing) {
+  if (isAuthenticated && hasProcessed && !isHandlingCallback) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="max-w-md w-full text-center">

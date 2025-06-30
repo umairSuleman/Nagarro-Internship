@@ -6,8 +6,6 @@ const initialState: AuthState = {
   user: null,
   accessToken: null,
   isAuthenticated: false,
-  isLoading: false,
-  error: null,
 };
 
 //async thunk for handling OAuth callback
@@ -55,62 +53,34 @@ export const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    clearError: (state) => {
-      state.error = null;
-    },
     logout: (state) => {
       authService.logout();
       state.user = null;
       state.accessToken = null;
       state.isAuthenticated = false;
-      state.error = null;
     },
     //set access token directly (for manual token updates)
     setAccessToken: (state, action) => {
       state.accessToken = action.payload;
-      state.isAuthenticated = !!action.payload;
+      state.isAuthenticated = Boolean(action.payload);
     },
   },
   extraReducers: (builder) => {
     builder
       //handle OAuth callback
-      .addCase(handleOAuthCallback.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
       .addCase(handleOAuthCallback.fulfilled, (state, action) => {
-        state.isLoading = false;
         state.user = action.payload.user;
         state.accessToken = action.payload.tokens.access_token;
         state.isAuthenticated = true;
-        state.error = null;
-      })
-      .addCase(handleOAuthCallback.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.error.message || 'Authentication failed';
-        state.isAuthenticated = false;
       })
       
       //get current user
-      .addCase(getCurrentUser.pending, (state) => {
-        state.isLoading = true;
-      })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
-        state.isLoading = false;
         state.user = action.payload;
-        state.isAuthenticated = true;
-      })
-      .addCase(getCurrentUser.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.error.message || 'Failed to get user';
       })
       
       //check auth status
-      .addCase(checkAuthStatus.pending, (state) => {
-        state.isLoading = true;
-      })
       .addCase(checkAuthStatus.fulfilled, (state, action) => {
-        state.isLoading = false;
         if (action.payload) {
           state.user = action.payload.user;
           state.accessToken = action.payload.accessToken;
@@ -119,11 +89,7 @@ export const authSlice = createSlice({
           state.isAuthenticated = false;
         }
       })
-      .addCase(checkAuthStatus.rejected, (state) => {
-        state.isLoading = false;
-        state.isAuthenticated = false;
-      });
   },
 });
 
-export const { clearError, logout, setAccessToken } = authSlice.actions;
+export const { logout, setAccessToken } = authSlice.actions;

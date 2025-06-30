@@ -6,10 +6,25 @@ import { logout } from '@/store/slices/authSlice';
 import { Button } from '@/components/buttons/Button';
 import type { RootState, AppDispatch } from '@/store';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { selectIsLoading } from '@/store/slices/globalSlice';
 
 export const LoginButton: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { isAuthenticated, user, isLoading } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+
+  //global loading selectors
+  const isCheckingAuth = useSelector((state: RootState) => 
+    selectIsLoading(state, 'auth/checkAuthStatus')
+  );
+  const isHandlingCallback = useSelector ((state : RootState) => 
+    selectIsLoading(state, 'auth/handleOAuthCallback')
+  );
+  const isGettingUser = useSelector((state : RootState) => 
+    selectIsLoading(state, 'auth/getCurrentUser')
+  );
+
+  //check if any auth operation is in progress  
+  const isLoading = isCheckingAuth || isHandlingCallback || isGettingUser;
 
   const handleLogin = () => {
     console.log('Login button clicked');
