@@ -236,7 +236,7 @@ class AuthService {
   }
 
   private async storeTokens(tokens: AuthTokens): Promise<void> {
-    tokenStorage.setAccessToken(tokens.access_token);
+    tokenStorage.setAccessToken(tokens.access_token, tokens.expires_in);
     
     if (tokens.refresh_token) {
       await tokenStorage.setRefreshTokenCookie(tokens.refresh_token);

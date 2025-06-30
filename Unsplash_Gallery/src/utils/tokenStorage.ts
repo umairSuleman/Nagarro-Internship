@@ -1,17 +1,7 @@
-
-/**
- * Secure Token Storage Utility
- * 
- * SECURITY IMPLEMENTATION:
- * 1. Access tokens stored in memory only (React state) - immune to XSS attacks on storage
- * 2. Refresh tokens stored in HTTP-only cookies (handled by backend)
- * 3. Encrypted storage fallback for development/testing
- * 4. Automatic cleanup on page unload
- */
-
 import CryptoJS from 'crypto-js';
 
-const STORAGE_KEY = 'unsplash_refresh_token';
+const ACCESS_TOKEN_KEY = 'unsplash_access_token';
+const REFRESH_TOKEN_KEY = 'unsplash_refresh_token';
 const ENCRYPTION_SECRET = import.meta.env.VITE_ENCRYPTION_CODE; 
 
 interface StoredTokenData {
@@ -23,9 +13,13 @@ interface StoredTokenData {
 export class SecureTokenStorage {
   private static instance: SecureTokenStorage;
   private memoryToken: string | null = null;
+  private tokenExpiresAt: number | null = null;
 
   private constructor() {
-    //cleanup tokens on page unload for security
+    // Initialize memory token from storage on startup
+    this.initializeFromStorage();
+    
+    // Cleanup tokens on page unload for security
     window.addEventListener('beforeunload', this.cleanup.bind(this));
   }
 
@@ -37,23 +31,87 @@ export class SecureTokenStorage {
   }
 
   /**
-   * Store access token in memory (MOST SECURE)
-   * Attack Vector: None - cleared on page refresh
-   * Use Case: Short-lived access tokens
+   * Initialize tokens from persistent storage on app startup
    */
-  setAccessToken(token: string): void {
-    this.memoryToken = token;
-  }
-
-  getAccessToken(): string | null {
-    return this.memoryToken;
+  private initializeFromStorage(): void {
+    const accessToken = this.getStoredAccessToken();
+    if (accessToken && !this.isTokenExpired(ACCESS_TOKEN_KEY)) {
+      this.memoryToken = accessToken;
+      console.log('Access token restored from storage');
+    } else {
+      this.clearAccessToken();
+    }
   }
 
   /**
-   * Store refresh token with encryption (FALLBACK ONLY)
-   * Attack Vector: XSS can still access if malicious script gains access
-   * Security Solution: Encryption + CSP headers + input sanitization
-   * Use Case: When HTTP-only cookies aren't available
+   * Store access token in both memory and encrypted storage
+   * Memory for performance, storage for persistence across refreshes
+   */
+  setAccessToken(token: string, expiresIn?: number): void {
+    this.memoryToken = token;
+    
+    // Store encrypted in localStorage for persistence
+    try {
+      const expiresAt = expiresIn ? Date.now() + (expiresIn * 1000) : Date.now() + (60 * 60 * 1000); // Default 1 hour
+      this.tokenExpiresAt = expiresAt;
+      
+      const encryptedToken = this.encrypt(token);
+      const data: StoredTokenData = {
+        token: encryptedToken,
+        expiresAt,
+        encrypted: true
+      };
+
+      localStorage.setItem(ACCESS_TOKEN_KEY, JSON.stringify(data));
+    } catch (error) {
+      console.error('Failed to store access token:', error);
+    }
+  }
+
+  getAccessToken(): string | null {
+    // First check memory (fastest)
+    if (this.memoryToken) {
+      return this.memoryToken;
+    }
+
+    // Fallback to storage if memory is cleared
+    const storedToken = this.getStoredAccessToken();
+    if (storedToken && !this.isTokenExpired(ACCESS_TOKEN_KEY)) {
+      this.memoryToken = storedToken; // Restore to memory
+      return storedToken;
+    }
+
+    return null;
+  }
+
+  private getStoredAccessToken(): string | null {
+    try {
+      const stored = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (!stored) return null;
+
+      const data: StoredTokenData = JSON.parse(stored);
+      
+      // Check expiration
+      if (Date.now() > data.expiresAt) {
+        this.clearAccessToken();
+        return null;
+      }
+
+      return data.encrypted ? this.decrypt(data.token) : data.token;
+    } catch (error) {
+      console.error('Failed to retrieve stored access token:', error);
+      return null;
+    }
+  }
+
+  private clearAccessToken(): void {
+    this.memoryToken = null;
+    this.tokenExpiresAt = null;
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+  }
+
+  /**
+   * Store refresh token with encryption
    */
   setRefreshToken(token: string, expiresIn: number): void {
     try {
@@ -66,8 +124,7 @@ export class SecureTokenStorage {
         encrypted: true
       };
 
-      // Store in localStorage as encrypted fallback
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(REFRESH_TOKEN_KEY, JSON.stringify(data));
     } catch (error) {
       console.error('Failed to store refresh token:', error);
     }
@@ -75,7 +132,7 @@ export class SecureTokenStorage {
 
   getRefreshToken(): string | null {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(REFRESH_TOKEN_KEY);
       if (!stored) return null;
 
       const data: StoredTokenData = JSON.parse(stored);
@@ -95,13 +152,10 @@ export class SecureTokenStorage {
 
   /**
    * Preferred method: Set refresh token as HTTP-only cookie
-   * Attack Vector: CSRF attacks
-   * Security Solution: SameSite=Strict, Secure flag, CSRF tokens
    */
   async setRefreshTokenCookie(token: string): Promise<void> {
     try {
       // This would typically be handled by your backend
-      // Backend sets HTTP-only cookie after successful OAuth
       await fetch('/api/auth/set-refresh-token', {
         method: 'POST',
         credentials: 'include',
@@ -122,6 +176,8 @@ export class SecureTokenStorage {
    */
   clearTokens(): void {
     this.memoryToken = null;
+    this.tokenExpiresAt = null;
+    this.clearAccessToken();
     this.clearRefreshToken();
     
     // Clear HTTP-only cookie (backend call)
@@ -132,7 +188,19 @@ export class SecureTokenStorage {
   }
 
   private clearRefreshToken(): void {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  }
+
+  private isTokenExpired(key: string): boolean {
+    try {
+      const stored = localStorage.getItem(key);
+      if (!stored) return true;
+
+      const data: StoredTokenData = JSON.parse(stored);
+      return Date.now() > data.expiresAt;
+    } catch {
+      return true;
+    }
   }
 
   private encrypt(text: string): string {
@@ -145,7 +213,7 @@ export class SecureTokenStorage {
   }
 
   private cleanup(): void {
-    // Clear memory token on page unload for security
+    // Keep persistent storage, only clear memory
     this.memoryToken = null;
   }
 
@@ -153,17 +221,27 @@ export class SecureTokenStorage {
    * Check if any valid token exists
    */
   hasValidToken(): boolean {
-    const memoryToken = this.memoryToken;
+    const accessToken = this.getAccessToken();
     const refreshToken = this.getRefreshToken();
-    const hasToken = memoryToken !== null || refreshToken !== null;
+    const hasToken = accessToken !== null || refreshToken !== null;
     
     console.log('Token check:', {
-      hasMemoryToken: !!memoryToken,
+      hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
       overall: hasToken
     });
     
     return hasToken;
+  }
+
+  /**
+   * Get token expiration info
+   */
+  getTokenExpirationInfo(): { isExpired: boolean; expiresAt: number | null } {
+    return {
+      isExpired: this.isTokenExpired(ACCESS_TOKEN_KEY),
+      expiresAt: this.tokenExpiresAt
+    };
   }
 }
 
