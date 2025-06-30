@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   ImageCard, 
@@ -27,6 +27,8 @@ import type { SearchParams } from '../types';
 
 export const SearchPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const loading = useSelector((state: RootState) => 
     Object.keys(state.global.loading).some(key => 
@@ -55,14 +57,23 @@ export const SearchPage: React.FC = () => {
   } = useSelector((state: RootState) => state.search);
 
   const handleSearch = useCallback((page: number = 1, append: boolean = false) => {
-    if (!query.trim() || loading) return;
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || loading) {
+      console.log('Search skipped:', { query: trimmedQuery, loading });
+      return;
+    }
+
+    //clear any pending timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
 
     if (append) {
       dispatch(setCurrentPage(page));
     }
     
     const params: SearchParams & { append?: boolean } = {
-      query: query.trim(),
+      query: trimmedQuery,
       page,
       per_page: 12,
       order_by: orderBy,
@@ -72,70 +83,99 @@ export const SearchPage: React.FC = () => {
     if (orientation) params.orientation = orientation;
     if (color) params.color = color as any;
     
+    console.log('Searching with params:', params);
     dispatch(searchPhotos(params));
   }, [query, loading, orderBy, orientation, color, dispatch]);
 
   const loadMorePhotos = useCallback(() => {
-    if (hasMore && !loading && query.trim() && currentPage) {
+    const trimmedQuery = query.trim();
+    if (hasMore && !loading && trimmedQuery && currentPage && !isInitialSearch) {
       const nextPage = currentPage + 1;
+      console.log('Loading more search results - page:', nextPage);
       handleSearch(nextPage, true);
     }
-  }, [hasMore, loading, query, currentPage, handleSearch]);
+  }, [hasMore, loading, query, currentPage, handleSearch, isInitialSearch]);
 
-  // Infinite scroll hook with memoized options
   const infiniteScrollOptions = useMemo(() => ({
-    hasMore,
+    hasMore: hasMore && hasSearched && !isInitialSearch,
     loading,
     threshold: 0.1,
     rootMargin: '200px'
-  }), [hasMore, loading]);
+  }), [hasMore, hasSearched, loading, isInitialSearch]);
 
   const { loadMoreRef, isIntersecting } = useInfiniteScroll(infiniteScrollOptions);
 
-  // Load more when intersecting - add debouncing
+  //handle intersection with better debouncing
   useEffect(() => {
-    if (isIntersecting && !isInitialSearch && hasSearched && !loading) {
-      const timeoutId = setTimeout(() => {
-        loadMorePhotos();
-      }, 100);
+    if (isIntersecting && !isInitialSearch && hasSearched && !loading && hasMore && query.trim()) {
+      console.log('Search intersection detected, loading more results...');
       
-      return () => clearTimeout(timeoutId);
+      //add debouncing to prevent rapid firing
+      loadingTimeoutRef.current = setTimeout(() => {
+        loadMorePhotos();
+      }, 150);
+      
+      return () => {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+        }
+      };
     }
-  }, [isIntersecting, loadMorePhotos, isInitialSearch, hasSearched, loading]);
+  }, [isIntersecting, loadMorePhotos, isInitialSearch, hasSearched, loading, hasMore, query]);
 
   const handleSearchSubmit = useCallback(() => {
+    if (!query.trim()) return;
+    
+    console.log('Search submitted:', query.trim());
     dispatch(resetSearch());
     dispatch(setCurrentPage(1));
-    handleSearch(1, false);
-  }, [dispatch, handleSearch]);
+    
+    //small delay to ensure state is reset before search
+    setTimeout(() => {
+      handleSearch(1, false);
+    }, 50);
+  }, [dispatch, handleSearch, query]);
 
   const handleQueryChange = useCallback((newQuery: string) => {
     dispatch(setQuery(newQuery));
   }, [dispatch]);
 
-  const handleOrderByChange = useCallback((newOrderBy: 'relevant' | 'latest') => {
-    dispatch(setOrderBy(newOrderBy));
+  const handleFilterChange = useCallback((filterAction: any) => {
+    dispatch(filterAction);
+    
+    //if user has already searched, perform new search with updated filters
     if (hasSearched && query.trim()) {
       dispatch(resetSearch());
-      setTimeout(() => handleSearch(1, false), 0);
+      
+      //use timeout to ensure filter state is updated before search
+      searchTimeoutRef.current = setTimeout(() => {
+        handleSearch(1, false);
+      }, 100);
     }
   }, [dispatch, hasSearched, query, handleSearch]);
+
+  const handleOrderByChange = useCallback((newOrderBy: 'relevant' | 'latest') => {
+    handleFilterChange(setOrderBy(newOrderBy));
+  }, [handleFilterChange]);
 
   const handleOrientationChange = useCallback((newOrientation: '' | 'landscape' | 'portrait' | 'squarish') => {
-    dispatch(setOrientation(newOrientation));
-    if (hasSearched && query.trim()) {
-      dispatch(resetSearch());
-      setTimeout(() => handleSearch(1, false), 0);
-    }
-  }, [dispatch, hasSearched, query, handleSearch]);
+    handleFilterChange(setOrientation(newOrientation));
+  }, [handleFilterChange]);
 
   const handleColorChange = useCallback((newColor: string) => {
-    dispatch(setColor(newColor));
-    if (hasSearched && query.trim()) {
-      dispatch(resetSearch());
-      setTimeout(() => handleSearch(1, false), 0);
-    }
-  }, [dispatch, hasSearched, query, handleSearch]);
+    handleFilterChange(setColor(newColor));
+  }, [handleFilterChange]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <Section>
@@ -183,14 +223,15 @@ export const SearchPage: React.FC = () => {
             ))}
           </Grid>
           
-          {/* Infinite scroll loader */}
-          <InfiniteScrollLoader
-            loading={loading}
-            hasMore={hasMore}
-            loadMoreRef={loadMoreRef}
-            error={error}
-            onRetry={loadMorePhotos}
-          />
+          {hasSearched && !isInitialSearch && (
+            <InfiniteScrollLoader
+              loading={loading}
+              hasMore={hasMore}
+              loadMoreRef={loadMoreRef}
+              error={error}
+              onRetry={loadMorePhotos}
+            />
+          )}
         </Section>
       )}
     </Section>

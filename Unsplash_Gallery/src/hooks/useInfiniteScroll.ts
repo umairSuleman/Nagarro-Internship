@@ -21,39 +21,41 @@ export const useInfiniteScroll = ({
   const [isIntersecting, setIsIntersecting] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Use refs to store current values to avoid recreating the callback
-  const hasMoreRef = useRef(hasMore);
-  const loadingRef = useRef(loading);
-  
-  // Update refs when values change
-  useEffect(() => {
-    hasMoreRef.current = hasMore;
-    loadingRef.current = loading;
-  }, [hasMore, loading]);
-
+  //stable callback that doesn't change on every render
   const handleIntersection = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       const [entry] = entries;
-      if (entry.isIntersecting && hasMoreRef.current && !loadingRef.current) {
-        setIsIntersecting(true);
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      //only trigger if element is intersecting AND we have more content AND not currently loading
+      if (entry.isIntersecting && hasMore && !loading) {
+        //debounce the intersection to prevent rapid firing
+        timeoutRef.current = setTimeout(() => {
+          setIsIntersecting(true);
+        }, 100);
       } else {
         setIsIntersecting(false);
       }
     },
-    [] // Empty dependency array since we use refs
+    [hasMore, loading] 
   );
 
+  //set up the intersection observer
   useEffect(() => {
     const element = loadMoreRef.current;
     if (!element) return;
 
-    // Disconnect previous observer
+    //clean up previous observer
     if (observerRef.current) {
       observerRef.current.disconnect();
     }
 
-    // Create new observer
+    //create new observer with stable callback
     observerRef.current = new IntersectionObserver(handleIntersection, {
       threshold,
       rootMargin
@@ -61,18 +63,31 @@ export const useInfiniteScroll = ({
 
     observerRef.current.observe(element);
 
+    //cleanup function
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
       }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
     };
   }, [handleIntersection, threshold, rootMargin]);
 
-  // Cleanup on unmount
+  //reset intersection state when conditions change
+  useEffect(() => {
+    if (!hasMore || loading) {
+      setIsIntersecting(false);
+    }
+  }, [hasMore, loading]);
+
   useEffect(() => {
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
     };
   }, []);

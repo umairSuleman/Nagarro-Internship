@@ -1,13 +1,9 @@
-import CryptoJS from 'crypto-js';
-
 const ACCESS_TOKEN_KEY = 'unsplash_access_token';
 const REFRESH_TOKEN_KEY = 'unsplash_refresh_token';
-const ENCRYPTION_SECRET = import.meta.env.VITE_ENCRYPTION_CODE; 
 
 interface StoredTokenData {
   token: string;
   expiresAt: number;
-  encrypted: boolean;
 }
 
 export class SecureTokenStorage {
@@ -44,22 +40,20 @@ export class SecureTokenStorage {
   }
 
   /**
-   * Store access token in both memory and encrypted storage
+   * Store access token in both memory and storage
    * Memory for performance, storage for persistence across refreshes
    */
   setAccessToken(token: string, expiresIn?: number): void {
     this.memoryToken = token;
     
-    // Store encrypted in localStorage for persistence
+    // Store in localStorage for persistence
     try {
       const expiresAt = expiresIn ? Date.now() + (expiresIn * 1000) : Date.now() + (60 * 60 * 1000); // Default 1 hour
       this.tokenExpiresAt = expiresAt;
       
-      const encryptedToken = this.encrypt(token);
       const data: StoredTokenData = {
-        token: encryptedToken,
-        expiresAt,
-        encrypted: true
+        token: token,
+        expiresAt
       };
 
       localStorage.setItem(ACCESS_TOKEN_KEY, JSON.stringify(data));
@@ -97,7 +91,7 @@ export class SecureTokenStorage {
         return null;
       }
 
-      return data.encrypted ? this.decrypt(data.token) : data.token;
+      return data.token;
     } catch (error) {
       console.error('Failed to retrieve stored access token:', error);
       return null;
@@ -111,17 +105,15 @@ export class SecureTokenStorage {
   }
 
   /**
-   * Store refresh token with encryption
+   * Store refresh token
    */
   setRefreshToken(token: string, expiresIn: number): void {
     try {
       const expiresAt = Date.now() + (expiresIn * 1000);
-      const encryptedToken = this.encrypt(token);
       
       const data: StoredTokenData = {
-        token: encryptedToken,
-        expiresAt,
-        encrypted: true
+        token: token,
+        expiresAt
       };
 
       localStorage.setItem(REFRESH_TOKEN_KEY, JSON.stringify(data));
@@ -143,7 +135,7 @@ export class SecureTokenStorage {
         return null;
       }
 
-      return data.encrypted ? this.decrypt(data.token) : data.token;
+      return data.token;
     } catch (error) {
       console.error('Failed to retrieve refresh token:', error);
       return null;
@@ -166,7 +158,7 @@ export class SecureTokenStorage {
       });
     } catch (error) {
       console.error('Failed to set refresh token cookie:', error);
-      // Fallback to encrypted localStorage
+      // Fallback to localStorage
       this.setRefreshToken(token, 7 * 24 * 60 * 60); // 7 days
     }
   }
@@ -201,15 +193,6 @@ export class SecureTokenStorage {
     } catch {
       return true;
     }
-  }
-
-  private encrypt(text: string): string {
-    return CryptoJS.AES.encrypt(text, ENCRYPTION_SECRET).toString();
-  }
-
-  private decrypt(ciphertext: string): string {
-    const bytes = CryptoJS.AES.decrypt(ciphertext, ENCRYPTION_SECRET);
-    return bytes.toString(CryptoJS.enc.Utf8);
   }
 
   private cleanup(): void {

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RefreshCw } from 'lucide-react';
 import { ImageCard, PageHeader, Section, Grid, Button } from '../components';
@@ -9,27 +9,31 @@ import type { RootState, AppDispatch } from '../store/types';
 
 export const HomePage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { photos, currentPage, perPage, hasMore, isInitialLoad } = useSelector(
     (state: RootState) => state.home
   );
   
-  // Check if specifically the home photos are loading
   const loading = useSelector((state: RootState) => 
     Object.keys(state.global.loading).some(key => 
       key.includes('home/fetchPhotos') && state.global.loading[key]
     )
   );
 
-  // Get loading error if any
   const error = useSelector((state: RootState) => 
     Object.entries(state.global.errors).find(([key]) => 
       key.includes('home/fetchPhotos')
     )?.[1] || null
   );
 
-  // Memoize the loadPhotos function to prevent unnecessary recreations
+  //memoize the loadPhotos function to prevent unnecessary recreations
   const loadPhotos = useCallback((page: number = 1, append: boolean = false) => {
+    // Clear any pending timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    
     if (append) {
       dispatch(setCurrentPage(page));
     }
@@ -40,44 +44,53 @@ export const HomePage: React.FC = () => {
     }));
   }, [dispatch, perPage]);
 
-  // Memoize loadMorePhotos and add loading check
+  //memoize loadMorePhotos with better loading check
   const loadMorePhotos = useCallback(() => {
-    if (hasMore && !loading && currentPage) {
+    if (hasMore && !loading && currentPage && !isInitialLoad) {
       const nextPage = currentPage + 1;
+      console.log('Loading more photos - page:', nextPage);
       loadPhotos(nextPage, true);
     }
-  }, [hasMore, loading, currentPage, loadPhotos]);
+  }, [hasMore, loading, currentPage, loadPhotos, isInitialLoad]);
 
-  // Infinite scroll hook with stable options
+  //infinite scroll hook with stable options
   const infiniteScrollOptions = useMemo(() => ({
-    hasMore,
+    hasMore: hasMore && !isInitialLoad, 
     loading,
     threshold: 0.1,
     rootMargin: '200px'
-  }), [hasMore, loading]);
+  }), [hasMore, loading, isInitialLoad]);
 
   const { loadMoreRef, isIntersecting } = useInfiniteScroll(infiniteScrollOptions);
 
-  // Load more when intersecting - add debouncing
+  //handle intersection with better debouncing and condition checking
   useEffect(() => {
-    if (isIntersecting && !isInitialLoad && !loading) {
-      // Add a small delay to prevent rapid firing
-      const timeoutId = setTimeout(() => {
-        loadMorePhotos();
-      }, 100);
+    if (isIntersecting && !isInitialLoad && !loading && hasMore) {
+      console.log('Intersection detected, loading more photos...');
       
-      return () => clearTimeout(timeoutId);
+      //add debouncing to prevent rapid firing
+      loadingTimeoutRef.current = setTimeout(() => {
+        loadMorePhotos();
+      }, 150);
+      
+      return () => {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+        }
+      };
     }
-  }, [isIntersecting, loadMorePhotos, isInitialLoad, loading]);
+  }, [isIntersecting, loadMorePhotos, isInitialLoad, loading, hasMore]);
 
-  // Initial load - only run once
+  //initial load - only runs once on mount
   useEffect(() => {
-    if (photos.length === 0 && !loading) {
+    if (photos.length === 0 && !loading && isInitialLoad) {
+      console.log('Initial load of home photos...');
       loadPhotos();
     }
-  }, []); // Remove dependencies to run only once
+  }, []); 
 
   const handleRefresh = useCallback(() => {
+    console.log('Refreshing home photos...');
     dispatch(resetPhotos());
     loadPhotos(1, false);
   }, [dispatch, loadPhotos]);
@@ -93,6 +106,14 @@ export const HomePage: React.FC = () => {
     </Button>
   ), [handleRefresh, loading]);
 
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <Section>
       <PageHeader
@@ -107,14 +128,15 @@ export const HomePage: React.FC = () => {
           ))}
         </Grid>
 
-        {/* Infinite scroll loader */}
-        <InfiniteScrollLoader
-          loading={loading}
-          hasMore={hasMore}
-          loadMoreRef={loadMoreRef}
-          error={error}
-          onRetry={loadMorePhotos}
-        />
+        {photos.length > 0 && !isInitialLoad && (
+          <InfiniteScrollLoader
+            loading={loading}
+            hasMore={hasMore}
+            loadMoreRef={loadMoreRef}
+            error={error}
+            onRetry={loadMorePhotos}
+          />
+        )}
       </Section>
     </Section>
   );
