@@ -82,14 +82,7 @@ const AppContent: React.FC = () => {
     <div className="min-h-screen bg-gray-100 relative">
       <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
       
-      {globalLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <LoadingSpinner />
-            <p className="text-center mt-4 text-gray-600">Loading...</p>
-          </div>
-        </div>
-      )}
+      {globalLoading && ( <LoadingSpinner /> )}
       
       <main className="max-w-7xl mx-auto px-4 py-8">
         {globalErrors.length > 0 && (
