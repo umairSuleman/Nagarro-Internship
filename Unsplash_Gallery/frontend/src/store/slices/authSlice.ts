@@ -32,10 +32,11 @@ export const checkAuthStatus = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       console.log('Checking auth status...');
-      if (authService.isAuthenticated()) {
+      const isAuthenticated = await authService.isAuthenticated();
+      if (isAuthenticated) {
         console.log('User appears to be authenticated, fetching user data...');
         const user = await authService.getCurrentUser();
-        const accessToken = authService.getAccessToken();
+        const accessToken = await authService.getAccessToken();
         console.log('Auth check successful:', { user: user.username, tokenExists: !!accessToken });
         return { user, accessToken };
       }

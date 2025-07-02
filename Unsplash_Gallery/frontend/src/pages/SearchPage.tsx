@@ -99,8 +99,8 @@ export const SearchPage: React.FC = () => {
   const infiniteScrollOptions = useMemo(() => ({
     hasMore: hasMore && hasSearched && !isInitialSearch,
     loading,
-    threshold: 0.1,
-    rootMargin: '200px'
+    threshold: 0.8,
+    rootMargin: '50px'
   }), [hasMore, hasSearched, loading, isInitialSearch]);
 
   const { loadMoreRef, isIntersecting } = useInfiniteScroll(infiniteScrollOptions);
@@ -113,7 +113,7 @@ export const SearchPage: React.FC = () => {
       //add debouncing to prevent rapid firing
       loadingTimeoutRef.current = setTimeout(() => {
         loadMorePhotos();
-      }, 150);
+      }, 300);
       
       return () => {
         if (loadingTimeoutRef.current) {

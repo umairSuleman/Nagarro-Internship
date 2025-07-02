@@ -1,4 +1,4 @@
-import { tokenStorage } from '@/utils/tokenStorage';
+import { jwtService } from './jwtService';
 import type { AuthTokens, AuthUser, OAuthConfig } from '@/types/auth';
 
 interface TokenExchangeRequest {
@@ -19,6 +19,8 @@ class AuthService {
   private readonly UNSPLASH_API_BASE = import.meta.env.VITE_BASE_URL;
   private readonly UNSPLASH_OAUTH_BASE = import.meta.env.VITE_OAUTH_URL;
   private processingCode: string | null = null;
+  private cachedAccessToken: string | null = null;
+  private tokenFetchPromise: Promise<string | null> | null = null;
 
   constructor() {
     this.config = {
@@ -117,7 +119,10 @@ class AuthService {
       }
 
       const tokens = responseData as AuthTokens;
-      await this.storeTokens(tokens);
+      
+      // Get user data and store in JWT
+      const user = await this.fetchUserWithToken(tokens.access_token);
+      await jwtService.storeTokens(tokens, user);
       
       sessionStorage.removeItem('oauth_state');
       
@@ -126,6 +131,24 @@ class AuthService {
     } finally {
       this.processingCode = null;
     }
+  }
+
+  /**
+   * Fetch user data directly with Unsplash token (used during initial auth)
+   */
+  private async fetchUserWithToken(token: string): Promise<AuthUser> {
+    const response = await fetch(`${this.UNSPLASH_API_BASE}/me`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user profile: ${response.status}`);
+    }
+
+    return await response.json();
   }
 
   private isCodeAlreadyUsed(code: string): boolean {
@@ -161,85 +184,55 @@ class AuthService {
   }
 
   async getCurrentUser(): Promise<AuthUser> {
-    const token = tokenStorage.getAccessToken();
-    if (!token) {
-      throw new Error('No access token available - please login');
-    }
-
-    return this.makeAuthenticatedRequest(async () => {
-      const response = await fetch(`${this.UNSPLASH_API_BASE}/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('UNAUTHORIZED');
-        }
-        throw new Error(`Failed to fetch user profile: ${response.status}`);
-      }
-
-      return await response.json();
-    });
-  }
-
-  private async makeAuthenticatedRequest<T>(
-    apiCall: () => Promise<T>,
-    retryCount = 0
-  ): Promise<T> {
     try {
-      return await apiCall();
+      const jwtResponse = await jwtService.getCurrentUser();
+      return jwtResponse.user;
     } catch (error) {
-      if (error instanceof Error && error.message === 'UNAUTHORIZED' && retryCount === 0) {
-        try {
-          await this.refreshAccessToken();
-          return this.makeAuthenticatedRequest(apiCall, 1);
-        } catch (refreshError) {
-          this.logout();
-          throw new Error('Authentication failed - please login again');
-        }
+      if (error instanceof Error && error.message === 'UNAUTHORIZED') {
+        throw new Error('UNAUTHORIZED');
       }
-      
       throw error;
     }
   }
 
-  private async refreshAccessToken(): Promise<void> {
-    const refreshToken = tokenStorage.getRefreshToken();
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
+  /**
+   * Get Unsplash access token for API calls
+   * This method is used by the UnsplashService
+   */
+  async getAccessToken(): Promise<string | null> {
+    // Return cached token if available
+    if (this.cachedAccessToken) {
+      return this.cachedAccessToken;
     }
 
-    const response = await fetch(`${this.UNSPLASH_OAUTH_BASE}/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        client_id: this.config.clientId,
-        client_secret: import.meta.env.VITE_ACCESS_SECRET,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Token refresh failed: ${errorData.error_description || 'Unknown error'}`);
+    // Prevent multiple simultaneous fetches
+    if (this.tokenFetchPromise) {
+      return await this.tokenFetchPromise;
     }
 
-    const tokens: AuthTokens = await response.json();
-    await this.storeTokens(tokens);
+    this.tokenFetchPromise = this.fetchAccessToken();
+    const token = await this.tokenFetchPromise;
+    this.tokenFetchPromise = null;
+
+    return token;
   }
 
-  private async storeTokens(tokens: AuthTokens): Promise<void> {
-    tokenStorage.setAccessToken(tokens.access_token, tokens.expires_in);
-    
-    if (tokens.refresh_token) {
-      await tokenStorage.setRefreshTokenCookie(tokens.refresh_token);
+  private async fetchAccessToken(): Promise<string | null> {
+    try {
+      const token = await jwtService.getUnsplashAccessToken();
+      this.cachedAccessToken = token;
+      
+      // Cache for 10 minutes
+      if (token) {
+        setTimeout(() => {
+          this.cachedAccessToken = null;
+        }, 10 * 60 * 1000);
+      }
+      
+      return token;
+    } catch (error) {
+      console.error('Failed to get access token:', error);
+      return null;
     }
   }
 
@@ -274,19 +267,16 @@ class AuthService {
     window.location.href = authUrl;
   }
 
-  logout(): void {
-    tokenStorage.clearTokens();
+  async logout(): Promise<void> {
+    await jwtService.logout();
     sessionStorage.removeItem('oauth_state');
     sessionStorage.removeItem('used_oauth_codes');
     this.processingCode = null;
+    this.cachedAccessToken = null;
   }
 
-  isAuthenticated(): boolean {
-    return tokenStorage.hasValidToken();
-  }
-
-  getAccessToken(): string | null {
-    return tokenStorage.getAccessToken();
+  async isAuthenticated(): Promise<boolean> {
+    return await jwtService.isAuthenticated();
   }
 
   private clearUsedCodes(): void {

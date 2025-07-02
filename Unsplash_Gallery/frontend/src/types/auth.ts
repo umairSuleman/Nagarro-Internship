@@ -12,10 +12,10 @@ export interface AuthUser {
     name: string;
     email: string;
     profile_image: {
-        small: string;
-        medium: string;
-        large: string;
-  };
+        small: string,
+        medium: string,
+        large: string
+    };
 }
 
 export interface AuthState {

@@ -59,7 +59,7 @@ export const LoginButton: React.FC = () => {
           <img
             src={user.profile_image.small}
             alt={user.name}
-            className="w-8 h-8 rounded-full"
+            className="w-8 h=8 rounded-full"
           />
           <span className="text-sm text-white">{user.name}</span>
         </div>
