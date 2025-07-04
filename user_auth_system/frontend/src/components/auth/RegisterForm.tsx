@@ -1,4 +1,3 @@
-// src/components/auth/RegisterForm.tsx
 import React, { useState } from 'react';
 import { Mail, Lock, User } from 'lucide-react';
 import { useAuth } from '../../contexts/authContext';
@@ -9,11 +8,82 @@ interface RegisterFormProps {
   onSwitchToLogin: () => void;
 }
 
+// Configuration map for form fields
+const FORM_FIELDS = {
+  name: {
+    id: 'name',
+    type: 'text',
+    label: 'Full Name',
+    placeholder: 'Enter your full name',
+    icon: User,
+    autoComplete: 'name',
+    required: true
+  },
+  email: {
+    id: 'email',
+    type: 'email',
+    label: 'Email Address',
+    placeholder: 'Enter your email',
+    icon: Mail,
+    autoComplete: 'email',
+    required: true
+  },
+  password: {
+    id: 'password',
+    type: 'password',
+    label: 'Password',
+    placeholder: 'Create a password',
+    icon: Lock,
+    autoComplete: 'new-password',
+    required: true
+  },
+  confirmPassword: {
+    id: 'confirmPassword',
+    type: 'password',
+    label: 'Confirm Password',
+    placeholder: 'Confirm your password',
+    icon: Lock,
+    autoComplete: 'new-password',
+    required: true
+  }
+} as const;
+
+// Configuration for form styling and content
+const FORM_CONFIG = {
+  theme: {
+    primary: 'green',
+    colors: {
+      icon: 'text-green-600',
+      button: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
+      focus: 'focus:ring-green-500',
+      link: 'text-green-600 hover:text-green-700'
+    }
+  },
+  content: {
+    title: 'Create Account',
+    subtitle: 'Join us today! Create your new account.',
+    buttonText: {
+      default: 'Create Account',
+      loading: 'Creating Account...'
+    },
+    switchText: 'Already have an account?',
+    switchLink: 'Sign in here'
+  },
+  validation: {
+    passwordMismatch: 'Passwords do not match',
+    passwordLength: 'Password must be at least 6 characters',
+    minPasswordLength: 6
+  }
+};
+
 const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
+  
   const [formState, setFormState] = useState<FormState>({
     loading: false,
     error: '',
@@ -21,12 +91,19 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
 
   const { register } = useAuth();
 
+  const handleInputChange = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   const validateForm = (): string | null => {
+    const { password, confirmPassword } = formData;
+    const { validation } = FORM_CONFIG;
+    
     if (password !== confirmPassword) {
-      return 'Passwords do not match';
+      return validation.passwordMismatch;
     }
-    if (password.length < 6) {
-      return 'Password must be at least 6 characters';
+    if (password.length < validation.minPasswordLength) {
+      return validation.passwordLength;
     }
     return null;
   };
@@ -42,7 +119,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
 
     setFormState({ loading: true, error: '' });
 
-    const result = await register(name, email, password);
+    const result = await register(formData.name, formData.email, formData.password);
     
     if (!result.success) {
       setFormState({ loading: false, error: result.error || 'Registration failed' });
@@ -51,109 +128,63 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
     }
   };
 
+  const renderFormField = (fieldKey: keyof typeof FORM_FIELDS) => {
+    const field = FORM_FIELDS[fieldKey];
+    const Icon = field.icon;
+    
+    return (
+      <div key={field.id}>
+        <label htmlFor={field.id} className="block text-sm font-medium text-gray-700 mb-1">
+          {field.label}
+        </label>
+        <div className="relative">
+          <Icon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            id={field.id}
+            type={field.type}
+            value={formData[fieldKey]}
+            onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+            className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${FORM_CONFIG.theme.colors.focus} focus:border-transparent`}
+            placeholder={field.placeholder}
+            required={field.required}
+            autoComplete={field.autoComplete}
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6">
       <div className="text-center mb-6">
-        <User className="h-12 w-12 text-green-600 mx-auto mb-2" />
-        <h2 className="text-2xl font-bold text-gray-900">Create Account</h2>
-        <p className="text-gray-600">Join us today! Create your new account.</p>
+        <User className={`h-12 w-12 ${FORM_CONFIG.theme.colors.icon} mx-auto mb-2`} />
+        <h2 className="text-2xl font-bold text-gray-900">{FORM_CONFIG.content.title}</h2>
+        <p className="text-gray-600">{FORM_CONFIG.content.subtitle}</p>
       </div>
 
       {formState.error && <Alert type="error" message={formState.error} />}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-            Full Name
-          </label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="Enter your full name"
-              required
-              autoComplete="name"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email Address
-          </label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="Enter your email"
-              required
-              autoComplete="email"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="Create a password"
-              required
-              autoComplete="new-password"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm Password
-          </label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="Confirm your password"
-              required
-              autoComplete="new-password"
-            />
-          </div>
-        </div>
+        {Object.keys(FORM_FIELDS).map(fieldKey => 
+          renderFormField(fieldKey as keyof typeof FORM_FIELDS)
+        )}
 
         <button
           type="submit"
           disabled={formState.loading}
-          className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className={`w-full ${FORM_CONFIG.theme.colors.button} text-white py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
         >
-          {formState.loading ? 'Creating Account...' : 'Create Account'}
+          {formState.loading ? FORM_CONFIG.content.buttonText.loading : FORM_CONFIG.content.buttonText.default}
         </button>
       </form>
 
       <p className="mt-4 text-center text-sm text-gray-600">
-        Already have an account?{' '}
+        {FORM_CONFIG.content.switchText}{' '}
         <button
           onClick={onSwitchToLogin}
-          className="text-green-600 hover:text-green-700 font-medium"
+          className={`${FORM_CONFIG.theme.colors.link} font-medium`}
         >
-          Sign in here
+          {FORM_CONFIG.content.switchLink}
         </button>
       </p>
     </div>
