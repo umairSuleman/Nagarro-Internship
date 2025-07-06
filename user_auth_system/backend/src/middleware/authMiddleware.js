@@ -24,7 +24,7 @@ const authenticateToken = (req, res, next) => {
     }
 };
 
-const optionalAuth = (req, next) => {
+const optionalAuth = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -34,7 +34,7 @@ const optionalAuth = (req, next) => {
             req.user = decoded;
         } 
         catch (error) {
-            // Token is invalid, but we don't reject the request
+            //Token is invalid, but we don't reject the request
             req.user = null;
         }
     }

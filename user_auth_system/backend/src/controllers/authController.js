@@ -8,7 +8,7 @@ class AuthController {
         try {
             const { name, email, password } = req.body;
 
-            // Validate input data
+            //Validate input data
             const validation = validateRegistrationData({ name, email, password });
             if (!validation.isValid) {
                 return res.status(400).json({
@@ -17,7 +17,7 @@ class AuthController {
                 });
             }
 
-            // Check if user already exists
+            //Check if user already exists
             const existingUser = await User.findByEmail(email);
             if (existingUser) {
                 return res.status(409).json({
@@ -64,7 +64,7 @@ class AuthController {
         try {
             const { email, password } = req.body;
 
-            // Validate input data
+            //Validate input data
             const validation = validateLoginData({ email, password });
             if (!validation.isValid) {
                 return res.status(400).json({
@@ -73,7 +73,7 @@ class AuthController {
                 });
             }
 
-            // Find user
+            //Find user
             const user = await User.findByEmail(email);
             if (!user) {
                 return res.status(401).json({
@@ -82,7 +82,7 @@ class AuthController {
                 });
             }
 
-            // Verify password
+            //Verify password
             const isValidPassword = await comparePassword(password, user.password);
             if (!isValidPassword) {
                 return res.status(401).json({
@@ -91,10 +91,10 @@ class AuthController {
                 });
             }
 
-            // Update last login
+            //Update last login
             await User.updateLastLogin(user.id);
 
-            // Generate token
+            //Generate token
             const token = generateToken({
                 userId: user.id,
                 email: user.email
@@ -153,8 +153,7 @@ class AuthController {
         });
     }
 
-    static async logout(res) {
-        // In a more advanced implementation, you might want to blacklist the token
+    static async logout(req, res) {
         res.json({
         success: true,
         message: 'Logout successful'
