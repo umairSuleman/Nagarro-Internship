@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Lock, User } from 'lucide-react';
-import { useAuth } from '../../contexts/authContext';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { registerUser, clearError } from '../../store/slices/authSlice';
 import Alert from '../ui/Alert';
-import type { FormState } from '../../types/auth';
+import Input from '../ui/Input';
+import Button from '../ui/Button';
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
@@ -84,15 +86,22 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
     confirmPassword: ''
   });
   
-  const [formState, setFormState] = useState<FormState>({
-    loading: false,
-    error: '',
-  });
+  const [validationError, setValidationError] = useState<string>('');
 
-  const { register } = useAuth();
+  const dispatch = useAppDispatch();
+  const { loading, error } = useAppSelector((state) => state.auth);
+
+  useEffect(() => {
+    // Clear error when component mounts
+    dispatch(clearError());
+  }, [dispatch]);
 
   const handleInputChange = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear validation error when user types
+    if (validationError) {
+      setValidationError('');
+    }
   };
 
   const validateForm = (): string | null => {
@@ -111,48 +120,42 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const validationError = validateForm();
-    if (validationError) {
-      setFormState({ loading: false, error: validationError });
+    const clientValidationError = validateForm();
+    if (clientValidationError) {
+      setValidationError(clientValidationError);
       return;
     }
 
-    setFormState({ loading: true, error: '' });
-
-    const result = await register(formData.name, formData.email, formData.password);
-    
-    if (!result.success) {
-      setFormState({ loading: false, error: result.error || 'Registration failed' });
-    } else {
-      setFormState({ loading: false, error: '' });
-    }
+    // Dispatch register action with Redux
+    dispatch(registerUser({
+      name: formData.name,
+      email: formData.email,
+      password: formData.password
+    }));
   };
 
   const renderFormField = (fieldKey: keyof typeof FORM_FIELDS) => {
     const field = FORM_FIELDS[fieldKey];
-    const Icon = field.icon;
     
     return (
-      <div key={field.id}>
-        <label htmlFor={field.id} className="block text-sm font-medium text-gray-700 mb-1">
-          {field.label}
-        </label>
-        <div className="relative">
-          <Icon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <input
-            id={field.id}
-            type={field.type}
-            value={formData[fieldKey]}
-            onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-            className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${FORM_CONFIG.theme.colors.focus} focus:border-transparent`}
-            placeholder={field.placeholder}
-            required={field.required}
-            autoComplete={field.autoComplete}
-          />
-        </div>
-      </div>
+      <Input
+        key={field.id}
+        id={field.id}
+        type={field.type}
+        label={field.label}
+        placeholder={field.placeholder}
+        value={formData[fieldKey]}
+        onChange={(value) => handleInputChange(fieldKey, value)}
+        icon={field.icon}
+        required={field.required}
+        autoComplete={field.autoComplete}
+        className={`focus:ring-2 ${FORM_CONFIG.theme.colors.focus}`}
+      />
     );
   };
+
+  // Display validation error or Redux error
+  const displayError = validationError || error;
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6">
@@ -162,20 +165,32 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
         <p className="text-gray-600">{FORM_CONFIG.content.subtitle}</p>
       </div>
 
-      {formState.error && <Alert type="error" message={formState.error} />}
+      {displayError && (
+        <Alert 
+          type="error" 
+          message={displayError} 
+          onClose={() => {
+            setValidationError('');
+            dispatch(clearError());
+          }} 
+        />
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {Object.keys(FORM_FIELDS).map(fieldKey => 
           renderFormField(fieldKey as keyof typeof FORM_FIELDS)
         )}
 
-        <button
+        <Button
           type="submit"
-          disabled={formState.loading}
-          className={`w-full ${FORM_CONFIG.theme.colors.button} text-white py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
+          variant="success"
+          size="md"
+          fullWidth
+          loading={loading}
+          disabled={loading}
         >
-          {formState.loading ? FORM_CONFIG.content.buttonText.loading : FORM_CONFIG.content.buttonText.default}
-        </button>
+          {loading ? FORM_CONFIG.content.buttonText.loading : FORM_CONFIG.content.buttonText.default}
+        </Button>
       </form>
 
       <p className="mt-4 text-center text-sm text-gray-600">
