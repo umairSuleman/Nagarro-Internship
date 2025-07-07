@@ -14,18 +14,17 @@ class AuthAPI {
         };
     }
 
-    private getAuthHeaders(): HeadersInit {
-        const token = localStorage.getItem('authToken');
+    private getRequestOptions(): RequestInit {
         return {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            credentials: 'include',
+            headers: this.getHeaders(),
         };
     }
 
     async login(credentials: LoginRequest): Promise<AuthResponse> {
         const response = await fetch (`${API_BASE}/auth/login`, {
             method: 'POST',
-            headers: this.getHeaders(),
+            ...this.getRequestOptions(),
             body: JSON.stringify(credentials),
         });
 
@@ -41,7 +40,7 @@ class AuthAPI {
     async register(credentials: RegisterRequest): Promise<AuthResponse> {
         const response= await fetch(`${API_BASE}/auth/register`, {
             method: 'POST', 
-            headers: this.getHeaders(),
+            ...this.getRequestOptions(),
             body: JSON.stringify(credentials),
         });
 
@@ -56,13 +55,25 @@ class AuthAPI {
 
     async verifyToken(): Promise<{user: User }> {
         const response = await fetch(`${API_BASE}/auth/verify`, {
-            headers: this.getAuthHeaders(),
+            method: 'GET',
+            ...this.getRequestOptions(),
         });
 
         if (!response.ok) {
             throw new Error('Token verification failed');
         }
         return response.json();
+    }
+
+    async logout(): Promise<void> {
+        const response = await fetch(`${API_BASE}/auth/logout`, {
+            method: 'POST',
+            ...this.getRequestOptions(),
+        });
+
+        if (!response.ok) {
+            throw new Error('Logout failed');
+        }
     }
 }
 
