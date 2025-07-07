@@ -1,12 +1,18 @@
 import React from 'react';
-import { useAuth } from '../../contexts/authContext';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import DashboardNavigation from './DashboardNavigation';
 import ProfileSection from './ProfileSection';
 import ProtectedContentSection from './ProtectedContentSection';
 import { DASHBOARD_CONFIG } from './config';
+import { logoutUser } from '../../store/slices/authSlice';
 
 const Dashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
+
+  const handleLogout = () => {
+    dispatch(logoutUser());
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -16,7 +22,7 @@ const Dashboard: React.FC = () => {
         iconColor={DASHBOARD_CONFIG.navigation.iconColor}
         welcomeText={DASHBOARD_CONFIG.navigation.welcomeText}
         userName={user?.name}
-        onLogout={logout}
+        onLogout={handleLogout}
       />
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
