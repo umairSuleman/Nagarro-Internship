@@ -11,7 +11,7 @@ const authenticateToken = (req, res, next) => {
     }
 
     if(!token) {
-        return new(ErrorFactory.authenticationError('Access Token Required'));
+        return next (ErrorFactory.authenticationError('Access Token Required'));
     }
 
     try {

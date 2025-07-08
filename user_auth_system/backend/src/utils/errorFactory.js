@@ -69,7 +69,7 @@ class ErrorFactory {
         return new AppError(
             `${resource} not found`,
             404,
-            ERROR_TYPES.CONFLICT,
+            ERROR_TYPES.NOT_FOUND,
             ERROR_SEVERITY.LOW,
             true
         );
