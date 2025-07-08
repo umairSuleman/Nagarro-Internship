@@ -1,14 +1,17 @@
 const { verifyToken } = require('../config/jwt');
+const { ErrorFactory } = require('../utils/errorFactory');
 
 const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    //try to get token from cookie first, then fallback to Authorization header
+    let token = req.cookies.authToken;
 
     if (!token) {
-        return res.status(401).json({ 
-            success: false, 
-            error: 'Access token required' 
-        });
+        const authHeader = req.headers['authorization'];
+        token = authHeader && authHeader.split(' ')[1];
+    }
+
+    if(!token) {
+        return new(ErrorFactory.authenticationError('Access Token Required'));
     }
 
     try {
@@ -17,16 +20,17 @@ const authenticateToken = (req, res, next) => {
         next();
     } 
     catch (error) {
-        return res.status(403).json({ 
-            success: false, 
-            error: 'Invalid or expired token' 
-        });
+        return next(ErrorFactory.tokenError('Invalid or Expired Token'));
     }
 };
 
 const optionalAuth = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    let token = req.cookies.authToken;
+
+    if(!token) {
+        const authHeader = req.headers['authorization'];
+        token=authHeader && authHeader.split(' ')[1];
+    }
 
     if (token) {
         try {
@@ -41,4 +45,20 @@ const optionalAuth = (req, res, next) => {
     next();
 };
 
-module.exports = { authenticateToken, optionalAuth };
+//middleware to check if user is authenticated
+const requireAuth = (req, res, next) => {
+    if(!req.user){
+        return next (ErrorFactory.authenticationError('Authentication Required'));
+    }
+    next();
+}
+
+//middleware to check if user is not authenticated
+const requireGuest = (req, res, next) => {
+    if(req.user){
+        return next (ErrorFactory.authenticationError('Already Authenticated'));
+    }
+    next();
+}
+
+module.exports = { authenticateToken, optionalAuth, requireAuth, requireGuest };
