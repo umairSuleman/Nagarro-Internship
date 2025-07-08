@@ -6,9 +6,10 @@ export type ProfileField = {
   accessor: keyof User;
 };
 
+
 export type StatusBadge = {
   text: string;
-  icon: React.ComponentType<{ className ?: string}>;
+  icon: React.ComponentType<{ className?: string}>;
   bgColor: string;
   textColor: string;
   iconColor: string;
