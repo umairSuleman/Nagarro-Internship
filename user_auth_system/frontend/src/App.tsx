@@ -4,11 +4,10 @@ import { verifyToken } from './store/slices/authSlice';
 import AuthPages from './components/auth/AuthPages';
 import Dashboard from './components/dashboard/Dashboard';
 import LoadingState from './components/ui/LoadingState';
-import ErrorState from './components/ui/ErrorState';
 
 const App: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { isAuthenticated, loading, user } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, loading} = useAppSelector((state) => state.auth);
   const [initializing, setInitializing] = React.useState(true);
 
   useEffect(() => {
