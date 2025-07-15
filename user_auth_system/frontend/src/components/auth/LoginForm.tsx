@@ -49,7 +49,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
         />
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form">
         <Input
           id="email"
           type="email"
