@@ -21,13 +21,13 @@ console.log('DB_NAME:', process.env.DB_NAME);
 
 //Middleware
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL,
     credentials: true
 }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser()); // Add cookie parser middleware
+app.use(cookieParser()); 
 
 //Routes
 app.use('/api/auth', authRoutes);

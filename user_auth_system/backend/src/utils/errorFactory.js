@@ -1,4 +1,4 @@
-//Error types constraints
+// Error types constraints
 const ERROR_TYPES = {
     OPERATIONAL: 'OPERATIONAL',
     VALIDATION: 'VALIDATION',
@@ -16,14 +16,13 @@ const ERROR_SEVERITY = {
     CRITICAL: 'CRITICAL'
 };
 
-class AppError extends Error{
-
-    constructor( message, statusCode, type, severity = ERROR_SEVERITY.MEDIUM, isOperational = true){
+class AppError extends Error {
+    constructor(message, statusCode, type, severity = ERROR_SEVERITY.MEDIUM, isOperational = true) {
         super(message);
-        this.statusCode= statusCode;
-        this.type= type;
-        this.severity= severity;
-        this.isOperational=isOperational;
+        this.statusCode = statusCode;
+        this.type = type;
+        this.severity = severity;
+        this.isOperational = isOperational;
         this.timestamp = new Date().toISOString();
 
         Error.captureStackTrace(this, this.constructor);
@@ -31,8 +30,8 @@ class AppError extends Error{
 }
 
 class ErrorFactory {
-    //validation errors
-    static validationError(message, details = null){
+    //Validation errors
+    static validationError(message, details = null) {
         return new AppError(
             message,
             400,
@@ -42,8 +41,8 @@ class ErrorFactory {
         );
     }
 
-    //authentication errors
-    static authenticationError(message='Authentication Failed'){
+    //Authentication errors
+    static authenticationError(message = 'Authentication Failed') {
         return new AppError(
             message,
             401,
@@ -53,8 +52,8 @@ class ErrorFactory {
         );
     }
 
-    //authorization errors
-    static authorizationError(message='Access Denied'){
+    //Authorization errors
+    static authorizationError(message = 'Access Denied') {
         return new AppError(
             message,
             403,
@@ -64,8 +63,8 @@ class ErrorFactory {
         );
     }
 
-    //not found errors
-    static notFoundErrors(resource='Resource'){
+    //Not found errors
+    static notFoundError(resource = 'Resource') {
         return new AppError(
             `${resource} not found`,
             404,
@@ -75,7 +74,7 @@ class ErrorFactory {
         );
     }
 
-    //conflict errors
+    //Conflict errors
     static conflictError(message) {
         return new AppError(
             message,
@@ -86,8 +85,8 @@ class ErrorFactory {
         );
     }
 
-    //internal server error 
-    static internalError(message='Internal Server Error'){
+    //Internal server error
+    static internalError(message = 'Internal Server Error') {
         return new AppError(
             message,
             500,
@@ -97,8 +96,8 @@ class ErrorFactory {
         );
     }
 
-    //operational errors 
-    static operationalError(message){
+    //Operational errors
+    static operationalError(message) {
         return new AppError(
             message,
             500,
@@ -108,8 +107,8 @@ class ErrorFactory {
         );
     }
 
-    //database errors 
-    static databaseError(message='Database Connection Failed'){
+    //Database errors
+    static databaseError(message = 'Database Connection Failed') {
         return new AppError(
             message,
             500,
@@ -119,8 +118,8 @@ class ErrorFactory {
         );
     }
 
-    //token related errors 
-    static tokenError(message='Invalid or Expired Token'){
+    //Token related errors
+    static tokenError(message = 'Invalid or Expired Token') {
         return new AppError(
             message,
             403,
@@ -130,8 +129,8 @@ class ErrorFactory {
         );
     }
 
-    //user already exists
-    static userExistsError(){
+    //User already exists
+    static userExistsError() {
         return new AppError(
             'User with this email already exists',
             409,
@@ -141,17 +140,39 @@ class ErrorFactory {
         );
     }
 
-    //invalid credentials
-    static invalidCredentialsError(){
+    //Invalid credentials
+    static invalidCredentialsError() {
         return new AppError(
-            'Invalid Credentials',
+            'Invalid credentials',
             401,
             ERROR_TYPES.AUTHENTICATION,
             ERROR_SEVERITY.MEDIUM,
             true
         );
     }
+
+    //Handle Sequelize errors
+    static handleSequelizeError(error) {
+        if (error.name === 'SequelizeValidationError') {
+            const message = error.errors[0]?.message || 'Validation failed';
+            return this.validationError(message);
+        }
+        
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return this.userExistsError();
+        }
+        
+        if (error.name === 'SequelizeConnectionError') {
+            return this.databaseError('Database connection failed');
+        }
+        
+        if (error.name === 'SequelizeDatabaseError') {
+            return this.databaseError('Database operation failed');
+        }
+        
+        //Generic Sequelize error
+        return this.internalError('Database operation failed');
+    }
 }
 
 module.exports = { ErrorFactory, AppError, ERROR_SEVERITY, ERROR_TYPES };
-

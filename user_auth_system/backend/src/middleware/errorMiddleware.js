@@ -1,5 +1,5 @@
 
-const { AppError, ERROR_TYPES, ERROR_SEVERITY } = require('../utils/errorFactory');
+const { AppError, ERROR_TYPES, ERROR_SEVERITY, ErrorFactory } = require('../utils/errorFactory');
 
 const logger = {
     error: (message, error) => {
@@ -19,13 +19,18 @@ const logger = {
     }
 };
 
-//error handler middleware
+//Error handler middleware
 const errorHandler = (err, req, res, next) => {
     let error = err;
 
-    //convert non-appError to AppError
-    if(!(error instanceof AppError)){       //postgresSQL unique constraint violation
-        if(err.code == '23505'){
+    //Convert non-AppError to AppError
+    if (!(error instanceof AppError)) {
+        // Handle Sequelize errors
+        if (error.name && error.name.startsWith('Sequelize')) {
+            error = ErrorFactory.handleSequelizeError(error);
+        }
+        //PostgreSQL unique constraint violation
+        else if (err.code === '23505') {
             error = new AppError(
                 'Resource already exists',
                 409,
@@ -34,7 +39,8 @@ const errorHandler = (err, req, res, next) => {
                 true
             );
         }
-        else if(err.code == 'ECONNREFUSED'){    //database connection error 
+        //Database connection error
+        else if (err.code === 'ECONNREFUSED') {
             error = new AppError(
                 'Database connection failed',
                 500,
@@ -43,7 +49,8 @@ const errorHandler = (err, req, res, next) => {
                 true
             );
         }
-        else if (err.name === 'JsonWebTokenError') {    //JWT errors
+        //JWT errors
+        else if (err.name === 'JsonWebTokenError') {
             error = new AppError(
                 'Invalid token',
                 403,
@@ -51,7 +58,7 @@ const errorHandler = (err, req, res, next) => {
                 ERROR_SEVERITY.MEDIUM,
                 true
             );
-        } 
+        }
         else if (err.name === 'TokenExpiredError') {
             error = new AppError(
                 'Token expired',
@@ -60,9 +67,9 @@ const errorHandler = (err, req, res, next) => {
                 ERROR_SEVERITY.MEDIUM,
                 true
             );
-        } 
+        }
         else {
-            // Generic internal server error
+            //Generic internal server error
             error = new AppError(
                 'Something went wrong',
                 500,
@@ -73,19 +80,18 @@ const errorHandler = (err, req, res, next) => {
         }
     }
 
-
-    //log error based on severity
-    if(error.severity == ERROR_SEVERITY.CRITICAL || error.severity == ERROR_SEVERITY.HIGH) {
+    //Log error based on severity
+    if (error.severity === ERROR_SEVERITY.CRITICAL || error.severity === ERROR_SEVERITY.HIGH) {
         logger.error(`${error.type} Error: ${error.message}`, error);
     }
-    else if(error.severity == ERROR_SEVERITY.MEDIUM){
+    else if (error.severity === ERROR_SEVERITY.MEDIUM) {
         logger.warn(`${error.type} Warning: ${error.message}`);
     }
-    else{
+    else {
         logger.info(`${error.type} Info: ${error.message}`);
     }
 
-    //send error response
+    //Send error response
     const errorResponse = {
         success: false,
         error: {
@@ -96,13 +102,13 @@ const errorHandler = (err, req, res, next) => {
         }
     };
 
-    //including stack trace
-    if(process.env.NODE_ENV =='development'){
+    //Include stack trace in development
+    if (process.env.NODE_ENV === 'development') {
         errorResponse.error.stack = error.stack;
     }
 
-    //include request info for debugging
-    if(error.severity == ERROR_SEVERITY.CRITICAL || error.severity == ERROR_SEVERITY.HIGH){
+    //Include request info for debugging critical/high severity errors
+    if (error.severity === ERROR_SEVERITY.CRITICAL || error.severity === ERROR_SEVERITY.HIGH) {
         errorResponse.error.requestInfo = {
             method: req.method,
             url: req.url,
@@ -112,13 +118,12 @@ const errorHandler = (err, req, res, next) => {
     }
 
     res.status(error.statusCode || 500).json(errorResponse);
-
 };
 
-//async error wrapper
+//Async error wrapper
 const asyncHandler = (fn) => (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
-}
+};
 
 //404 handler
 const notFoundHandler = (req, res, next) => {
@@ -132,21 +137,15 @@ const notFoundHandler = (req, res, next) => {
     next(error);
 };
 
-//global error logger for unhandled promise rejections
+//Global error logger for unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
     logger.error('Unhandled Rejection at:', { promise, reason });
-    // Optionally exit the process
-    // process.exit(1);
 });
 
-//global error logger for uncaught exceptions
+//Global error logger for uncaught exceptions
 process.on('uncaughtException', (err) => {
     logger.error('Uncaught Exception:', err);
     process.exit(1);
 });
 
-module.exports = {
-    errorHandler,
-    asyncHandler,
-    notFoundHandler
-};
+module.exports = { errorHandler, asyncHandler, notFoundHandler };

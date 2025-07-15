@@ -1,43 +1,53 @@
-const { Pool } = require('pg');
+const { Sequelize } = require('sequelize');
 
-// Database config
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-});
-
-// Test database connection
-pool.on('connect', () => {
-    console.log('Connected to PostgreSQL database');
-});
-
-pool.on('error', (err) => {
-    console.error('Database connection error:', err);
-});
-
-// Initialize database table
-const initializeDatabase = async () => {
-    try {
-        console.log('Creating users table if not exists...');
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        console.log('Users table ready');
+const sequelize = new Sequelize(
+    process.env.DB_NAME,
+    process.env.DB_USER,
+    process.env.DB_PASSWORD,
+    {
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT,
+        dialect: 'postgres',
+        logging: process.env.NODE_ENV === 'development' ? console.log: false,
+        define: {
+            timestamps: true,
+            underscored: true,
+            createdAt: 'created_at',
+            updatedAt: 'updated_at'
+        },
+        pool: {
+            max: 5,
+            min: 0,
+            acquire: 30000,
+            idle: 10000
+        }
     }
-    catch(error) {
-        console.error('Database initialization error:', error);
-        throw error;
-    }
+);
+
+//Test database connection
+const testConnection = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Database connection has been established successfully.');
+  } catch (error) {
+    console.error('Unable to connect to the database:', error);
+    throw error;
+  }
 };
 
-module.exports = { pool, initializeDatabase };
+//Initialize database
+const initializeDatabase = async () => {
+  try {
+    await testConnection();
+    
+    //Sync models with database
+    await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
+    console.log('Database models synchronized successfully.');
+    
+  } catch (error) {
+    console.error('Database initialization error:', error);
+    throw error;
+  }
+};
+
+module.exports = { sequelize, initializeDatabase };
