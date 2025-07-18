@@ -1,135 +1,82 @@
-import React, { memo } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import type { CheckboxItem as CheckboxItemType, CheckboxState, CheckboxTheme } from '../types/checkboxTypes';
+import React from 'react';
+import type { CheckboxConfig, CheckboxThemes } from '../types/checkboxTypes';
+import { useNestedCheckbox } from '../hooks/useNestedCheckbox';
+import CheckboxItemComponent from './CheckboxItem';
 
-interface CheckboxItemProps {
-    item: CheckboxItemType;
-    state: CheckboxState;
-    theme: CheckboxTheme;
-    level: number;
-    expandable?: boolean;
-    showIcons?: boolean;
-    showDescriptions?: boolean;
-    onCheckboxChange: (itemId: string, checked: boolean) => void;
-    onToggleExpansion: (itemId: string) => void;
-}
+const themes: CheckboxThemes = {
+    default: {
+        container: 'bg-white border border-gray-200 rounded-lg p-4',
+        item: 'hover:bg-gray-50 rounded-md transition-colors duration-150',
+        checkbox: 'border-gray-300 text-blue-600 focus:ring-blue-500',
+        label: 'text-gray-900',
+        description: 'text-gray-500',
+        icon: 'text-gray-400',
+        expandButton: 'text-gray-400 hover:text-gray-600',
+    },
+    dark: {
+        container: 'bg-gray-800 border border-gray-700 rounded-lg p-4',
+        item: 'hover:bg-gray-700 rounded-md transition-colors duration-150',
+        checkbox: 'border-gray-600 text-blue-500 focus:ring-blue-400 bg-gray-700',
+        label: 'text-gray-100',
+        description: 'text-gray-400',
+        icon: 'text-gray-500',
+        expandButton: 'text-gray-500 hover:text-gray-300',
+    },
+    minimal: {
+        container: 'bg-transparent border-0 p-2',
+        item: 'hover:bg-gray-100 rounded transition-colors duration-150',
+        checkbox: 'border-gray-400 text-gray-600 focus:ring-gray-400',
+        label: 'text-gray-800',
+        description: 'text-gray-600',
+        icon: 'text-gray-500',
+        expandButton: 'text-gray-500 hover:text-gray-700',
+    },
+};
 
-const CheckboxItemComponent: React.FC<CheckboxItemProps> = memo(({
-        item,
-        state,
-        theme,
-        level,
-        expandable,
-        showIcons,
-        showDescriptions,
-        onCheckboxChange,
-        onToggleExpansion
-    }) => {
-        const hasChildren = item.children && item.children.length > 0;
-        const paddingLeft = level * 20;
+const NestedCheckbox: React.FC<{ config: CheckboxConfig }> = ({ config }) => {
+    const {
+        itemStates,
+        selectedItems,
+        handleCheckboxChange,
+        toggleExpansion,
+        clearAll
+    } = useNestedCheckbox(config);
 
-        const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            onCheckboxChange(item.id, e.target.checked);
-        };
+    const theme = themes[config.theme || 'default'];
 
-        const handleToggleExpansion = () => {
-            onToggleExpansion(item.id);
-        };
-
-        const setIndeterminate = (el: HTMLInputElement | null) => {
-            if (el) {
-                el.indeterminate = state.indeterminate;
-            }
-        };
-
-        return (
-            <div className="select-none">
-                <div
-                    className={`flex items-center py-2 px-3 ${theme.item}`}
-                    style={{ paddingLeft: `${paddingLeft + 12}px` }}
-                >
-                    {/* Expansion toggle */}
-                    {expandable && hasChildren && (
-                        <button
-                            onClick={handleToggleExpansion}
-                            className={`mr-2 p-1 rounded hover:bg-gray-200 ${theme.expandButton}`}
-                            aria-label={state.expanded ? 'Collapse' : 'Expand'}
-                        >
-                            {state.expanded ? (
-                                <ChevronDown className="h-4 w-4" />
-                            ) : (
-                                <ChevronRight className="h-4 w-4" />
-                            )}
-                        </button>
-                    )}
-
-                    {/* Checkbox */}
-                    <input
-                        type="checkbox"
-                        id={item.id}
-                        checked={state.checked}
-                        ref={setIndeterminate}
-                        onChange={handleCheckboxChange}
-                        disabled={item.disabled}
-                        className={`mr-3 h-4 w-4 rounded focus:ring-2 focus:ring-offset-2 ${theme.checkbox} ${
-                            item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                        }`}
+    return (
+        <div data-testid="checkbox-container" className={theme.container}>
+            <div className="space-y-1">
+                {config.items.map(item => (
+                    <CheckboxItemComponent
+                        key={item.id}
+                        item={item}
+                        state={itemStates[item.id] || { checked: false, indeterminate: false, expanded: false }}
+                        theme={theme}
+                        level={0}
+                        expandable={config.expandable}
+                        showIcons={config.showIcons}
+                        showDescriptions={config.showDescriptions}
+                        onCheckboxChange={handleCheckboxChange}
+                        onToggleExpansion={toggleExpansion}
                     />
-
-                    {/* Icon */}
-                    {showIcons && item.icon && (
-                        <item.icon className={`h-4 w-4 mr-2 ${theme.icon}`} />
-                    )}
-
-                    {/* Label and description */}
-                    <div className="flex-1 min-w-0">
-                        <label
-                            htmlFor={item.id}
-                            className={`block text-sm font-medium ${theme.label} ${
-                                item.disabled ? 'opacity-50' : 'cursor-pointer'
-                            }`}
-                        >
-                            {item.label}
-                        </label>
-                        {showDescriptions && item.description && (
-                            <p className={`text-xs ${theme.description} mt-1`}>
-                                {item.description}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Selection indicator */}
-                    {state.checked && (
-                        <span className="ml-2 text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded">
-                            Selected
-                        </span>
-                    )}
-                </div>
-
-                {/* Children */}
-                {hasChildren && (!expandable || state.expanded) && (
-                    <div className="ml-4 border-l-2 border-gray-200">
-                        {item.children!.map(child => (
-                            <CheckboxItemComponent
-                                key={child.id}
-                                item={child}
-                                state={state}
-                                theme={theme}
-                                level={level + 1}
-                                expandable={expandable}
-                                showIcons={showIcons}
-                                showDescriptions={showDescriptions}
-                                onCheckboxChange={onCheckboxChange}
-                                onToggleExpansion={onToggleExpansion}
-                            />
-                        ))}
-                    </div>
-                )}
+                ))}
             </div>
-        );
-    }
-);
+            
+            {/* Selection summary */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>Selected items: {selectedItems.size}</span>
+                    <button
+                        onClick={clearAll}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                        Clear All
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
-CheckboxItemComponent.displayName = 'CheckboxItemComponent';
-
-export default CheckboxItemComponent;
+export default NestedCheckbox;
